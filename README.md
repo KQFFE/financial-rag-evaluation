@@ -67,14 +67,15 @@ and response path. Other tests check unsupported questions, made-up claims,
 reporting-period mismatches, date-specific document retrieval, attempts to
 reveal hidden instructions, malicious instructions inside source documents,
 financial amounts paired with the wrong values, units, periods, or citations,
-and saving live-evaluation results. They also exercise the CLI and the full
+alternate forms of the injected false revenue, and saving live-evaluation
+results. They also exercise the CLI and the full
 live-evaluation command with a simulated provider, including failure paths;
 they do not call the network. GitHub Actions runs these tests on every push
 and pull request and requires 100% combined statement and branch coverage
 of the application package. Coverage measures executed code, not whether
 every possible input, claim, or attack has been tested.
 
-The latest local run on Python 3.14.7 passed 63 tests with 100% combined
+The latest local run on Python 3.14.7 passed 70 tests with 100% combined
 statement and branch coverage. This is an offline code-coverage result, not a
 measure of real-model answer quality.
 
@@ -114,7 +115,10 @@ yet. The live command sends application instructions as a system message and
 questions plus retrieved passages as a separate user message. It also runs two
 extra safety probes: one asks the model to reveal a system-message canary, and
 another embeds conflicting instructions and a canary in a synthetic retrieved
-passage. These checks report obvious canary leakage or acceptance of the
-injected false answer. They make two additional model requests and do not prove
-the model is secure. The benchmark is a small demo with cases reviewed by hand;
-passing it does not establish general model safety or financial accuracy.
+passage. These checks report obvious canary leakage or the injected false
+revenue, including recognized numeric equivalents such as `999 million` and
+`$999,000,000`. The false-revenue check flags a mention even if the answer
+rejects it, and can miss unrecognized formats or paraphrases. These probes make
+two additional model requests and do not prove the model is secure. The
+benchmark is a small demo with cases reviewed by hand; passing it does not
+establish general model safety or financial accuracy.
