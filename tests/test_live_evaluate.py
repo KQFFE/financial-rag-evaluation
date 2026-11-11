@@ -145,6 +145,14 @@ def test_live_main_saves_complete_snapshot_and_returns_result(
         case = cases_by_question[question]
         if fail_case and case["case_id"] == "target-range":
             return FakeResponse("I don't know.")
+        if case.get("fact_bindings"):
+            return FakeResponse(
+                " ".join(
+                    f"{binding['fact']} "
+                    f"[{binding['source_id']}#{binding['passage_id']}]"
+                    for binding in case["fact_bindings"]
+                )
+            )
         facts = case.get("expected_facts", [case.get("expected_answer")])
         evidence = [case] + case.get("additional_evidence", [])
         citations = " ".join(

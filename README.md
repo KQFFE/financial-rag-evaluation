@@ -73,14 +73,18 @@ and pull request and requires 100% combined statement and branch coverage
 of the application package. Coverage measures executed code, not whether
 every possible input, claim, or attack has been tested.
 
-The latest local run on Python 3.14.7 passed 37 tests with 100% combined
+The latest local run on Python 3.14.7 passed 48 tests with 100% combined
 statement and branch coverage. This is an offline code-coverage result, not a
 measure of real-model answer quality.
 
 The grounding checker is deliberately lightweight: it checks expected answer
-text, citations, retrieved source passages, and overlapping content terms. It
-is not a semantic verifier and cannot establish that all possible claims are
-true.
+text, citations, retrieved source passages, and overlapping content terms. For
+the rate comparison, each rate must occur before its own source citation; the
+checker also catches swapped month labels, incorrect full dates, and some
+contradictory claims. This is a conservative text check: correct answers with
+different wording, formats, or citation placement may be rejected, and other
+contradictions may go undetected. It is not a semantic verifier and cannot
+establish that all possible claims are true.
 
 ## Optional live-model evaluation
 

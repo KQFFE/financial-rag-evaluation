@@ -47,6 +47,20 @@
       "4-3/4 to 5 percent",
       "4-1/2 to 4-3/4 percent"
     ],
+    "fact_bindings": [
+      {
+        "fact": "4-3/4 to 5 percent",
+        "source_id": "fomc-statement-2024-09-18",
+        "passage_id": "target-range",
+        "date_labels": ["2024-09-18", "september"]
+      },
+      {
+        "fact": "4-1/2 to 4-3/4 percent",
+        "source_id": "fomc-statement-2024-11-07",
+        "passage_id": "target-range",
+        "date_labels": ["2024-11-07", "november"]
+      }
+    ],
     "source_id": "fomc-statement-2024-09-18",
     "passage_id": "target-range",
     "additional_evidence": [

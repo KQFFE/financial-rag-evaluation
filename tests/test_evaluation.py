@@ -72,3 +72,103 @@ def test_abstention_must_not_include_citations() -> None:
     assert "An abstention must not include source citations." in grade_case(
         case, answer
     )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "2024-09-18: 4-1/2 to 4-3/4 percent; "
+        "2024-11-07: 4-3/4 to 5 percent "
+        "[fomc-statement-2024-09-18#target-range] "
+        "[fomc-statement-2024-11-07#target-range]",
+        "September: 4-3/4 to 5 percent "
+        "[fomc-statement-2024-11-07#target-range]; "
+        "November: 4-1/2 to 4-3/4 percent "
+        "[fomc-statement-2024-09-18#target-range]",
+        "November: 4-3/4 to 5 percent "
+        "[fomc-statement-2024-09-18#target-range]; "
+        "September: 4-1/2 to 4-3/4 percent "
+        "[fomc-statement-2024-11-07#target-range]",
+        "September: 4-3/4 to 5 percent "
+        "[fomc-statement-2024-09-18#target-range]; "
+        "November: 4-1/2 to 4-3/4 percent "
+        "[fomc-statement-2024-11-07#target-range]; "
+        "September: 4-1/2 to 4-3/4 percent.",
+        "4-3/4 to 5 percent [fomc-statement-2024-09-18#target-range]; "
+        "4-1/2 to 4-3/4 percent "
+        "[fomc-statement-2024-11-07#target-range]; "
+        "4-1/2 to 4-3/4 percent [fomc-statement-2024-09-18#target-range]",
+        "September 7, 2024: 4-3/4 to 5 percent "
+        "[fomc-statement-2024-09-18#target-range]; "
+        "November 18, 2024: 4-1/2 to 4-3/4 percent "
+        "[fomc-statement-2024-11-07#target-range]",
+        "2024-09-19: 4-3/4 to 5 percent "
+        "[fomc-statement-2024-09-18#target-range]; "
+        "2024-11-08: 4-1/2 to 4-3/4 percent "
+        "[fomc-statement-2024-11-07#target-range]",
+    ],
+)
+def test_comparison_rejects_mismatched_facts_dates_and_citations(text) -> None:
+    case = next(
+        c for c in load_benchmark() if c["case_id"] == "target-range-comparison"
+    )
+    evidence = FinancialAssistant(load_documents()).answer(
+        case["question"]
+    ).retrieved_passages
+    citations = (
+        "fomc-statement-2024-09-18#target-range",
+        "fomc-statement-2024-11-07#target-range",
+    )
+
+    issues = grade_case(case, Answer(text, citations, False, evidence))
+
+    assert any("paired" in issue for issue in issues)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "September: 4-3/4 to 5 percent "
+        "[fomc-statement-2024-09-18#target-range]; "
+        "November: 4-1/2 to 4-3/4 percent "
+        "[fomc-statement-2024-11-07#target-range]",
+        "2024-11-07: 4-1/2 to 4-3/4 percent "
+        "[fomc-statement-2024-11-07#target-range]; "
+        "2024-09-18: 4-3/4 to 5 percent "
+        "[fomc-statement-2024-09-18#target-range]",
+        "September 18, 2024: 4-3/4 to 5 percent "
+        "[fomc-statement-2024-09-18#target-range]; "
+        "November 7, 2024: 4-1/2 to 4-3/4 percent "
+        "[fomc-statement-2024-11-07#target-range]",
+    ],
+)
+def test_comparison_accepts_correctly_paired_facts(text) -> None:
+    case = next(
+        c for c in load_benchmark() if c["case_id"] == "target-range-comparison"
+    )
+    evidence = FinancialAssistant(load_documents()).answer(
+        case["question"]
+    ).retrieved_passages
+    citations = (
+        "fomc-statement-2024-09-18#target-range",
+        "fomc-statement-2024-11-07#target-range",
+    )
+
+    assert grade_case(case, Answer(text, citations, False, evidence)) == []
+
+
+def test_comparison_rejects_missing_fact_citation() -> None:
+    case = next(
+        c for c in load_benchmark() if c["case_id"] == "target-range-comparison"
+    )
+    evidence = FinancialAssistant(load_documents()).answer(
+        case["question"]
+    ).retrieved_passages
+    answer = Answer(
+        "4-3/4 to 5 percent [fomc-statement-2024-09-18#target-range]",
+        ("fomc-statement-2024-09-18#target-range",),
+        False,
+        evidence,
+    )
+
+    assert any("paired" in issue for issue in grade_case(case, answer))

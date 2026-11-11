@@ -1,3 +1,5 @@
+from datetime import date
+
 from financial_rag_eval.assistant import (
     ABSTENTION_MESSAGE,
     Answer,
@@ -145,10 +147,34 @@ def test_every_benchmark_case_has_a_valid_grounded_outcome() -> None:
                 (item["source_id"], item["passage_id"]) in document_passages
                 for item in evidence
             ), case["case_id"]
+            for binding in case.get("fact_bindings", []):
+                document = next(
+                    item for item in documents
+                    if item.source_id == binding["source_id"]
+                )
+                passage = next(
+                    item for item in document.passages
+                    if item.passage_id == binding["passage_id"]
+                )
+                assert binding["fact"] in passage.text
+                assert binding["fact"] in expected_facts
+                assert binding["date_labels"] == [
+                    document.publication_date,
+                    date.fromisoformat(document.publication_date)
+                    .strftime("%B").lower(),
+                ]
             citations = " ".join(
                 f"[{item['source_id']}#{item['passage_id']}]" for item in evidence
             )
-            answerer = MockAnswerer(f"{' '.join(expected_facts)} {citations}")
+            if case.get("fact_bindings"):
+                response = " ".join(
+                    f"{binding['fact']} "
+                    f"[{binding['source_id']}#{binding['passage_id']}]"
+                    for binding in case["fact_bindings"]
+                )
+            else:
+                response = f"{' '.join(expected_facts)} {citations}"
+            answerer = MockAnswerer(response)
         else:
             assert "expected_response" in case, case["case_id"]
             answerer = MockAnswerer("This must not be used.")
