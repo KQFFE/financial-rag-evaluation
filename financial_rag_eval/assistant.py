@@ -55,7 +55,7 @@ _STOP_WORDS = {
 
 
 class Answerer(Protocol):
-    def __call__(self, prompt: str) -> str: ...
+    def __call__(self, system_message: str, user_message: str) -> str: ...
 
 
 @dataclass(frozen=True)
@@ -175,7 +175,7 @@ def _is_instruction_extraction_attempt(question: str) -> bool:
     return any(pattern.search(question) for pattern in _INSTRUCTION_EXTRACTION_PATTERNS)
 
 
-def _build_prompt(
+def _build_user_message(
     question: str, passages: tuple[RetrievedPassage, ...]
 ) -> str:
     payload = {
@@ -193,7 +193,6 @@ def _build_prompt(
         ],
     }
     return (
-        f"{SYSTEM_INSTRUCTIONS}\n\n"
         "Question and retrieved passages follow as JSON data:\n"
         f"{json.dumps(payload, ensure_ascii=True)}"
     )
@@ -228,7 +227,9 @@ class FinancialAssistant:
                 for item in evidence
             )
         else:
-            response = self._answerer(_build_prompt(question, evidence))
+            response = self._answerer(
+                SYSTEM_INSTRUCTIONS, _build_user_message(question, evidence)
+            )
 
         citations = tuple(dict.fromkeys(_CITATION_PATTERN.findall(response)))
         return Answer(response, citations, _is_model_abstention(response), evidence)

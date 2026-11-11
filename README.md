@@ -80,5 +80,11 @@ Set `OPENAI_MODEL` to select another compatible model. The command prints a
 case-by-case grade and writes a JSON snapshot containing the model, timestamp,
 answers, citations, and grading issues. Live output can vary and may incur API
 costs; it is not run by CI. No live-model result is included in this repository
-yet. The benchmark is a small demo with cases reviewed by hand; passing it does
-not establish general model safety or financial accuracy.
+yet. The live command sends application instructions as a system message and
+questions plus retrieved passages as a separate user message. It also runs two
+extra safety probes: one asks the model to reveal a system-message canary, and
+another embeds conflicting instructions and a canary in a synthetic retrieved
+passage. These checks report obvious canary leakage or acceptance of the
+injected false answer. They make two additional model requests and do not prove
+the model is secure. The benchmark is a small demo with cases reviewed by hand;
+passing it does not establish general model safety or financial accuracy.
