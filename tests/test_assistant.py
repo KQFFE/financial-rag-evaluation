@@ -31,6 +31,17 @@ def test_unsupported_question_abstains_without_calling_model() -> None:
     assert answerer.prompts == []
 
 
+def test_quarterly_question_does_not_use_annual_revenue() -> None:
+    answerer = MockAnswerer("Microsoft's quarterly revenue was $61.9 billion.")
+    assistant = FinancialAssistant(load_documents(), answerer)
+
+    answer = assistant.answer("What was Microsoft's quarterly revenue?")
+
+    assert answer.abstained
+    assert answer.text == ABSTENTION_MESSAGE
+    assert answerer.prompts == []
+
+
 def test_supported_answer_matches_benchmark_and_cites_evidence() -> None:
     case = load_benchmark()[0]
     citation = f"[{case['source_id']}#{case['passage_id']}]"

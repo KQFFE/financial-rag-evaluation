@@ -23,6 +23,15 @@ SYSTEM_INSTRUCTIONS = (
 MINIMUM_TERM_OVERLAP = 2
 
 _CITATION_PATTERN = re.compile(r"\[([a-z0-9-]+#[a-z0-9-]+)\]", re.IGNORECASE)
+_QUARTERLY_PERIOD_PATTERN = re.compile(
+    r"\b(?:quarter(?:ly)?|q[1-4]|first quarter|second quarter|"
+    r"third quarter|fourth quarter)\b",
+    re.IGNORECASE,
+)
+_ANNUAL_PERIOD_PATTERN = re.compile(
+    r"\b(?:annual(?:ly)?|fiscal year|year ended|fy\s*\d{2,4})\b",
+    re.IGNORECASE,
+)
 _INSTRUCTION_EXTRACTION_PATTERNS = (
     re.compile(
         r"\b(?:reveal|show|print|repeat|disclose|quote)\b.{0,80}"
@@ -120,14 +129,26 @@ def content_terms(text: str) -> set[str]:
     }
 
 
+def _reporting_period(text: str) -> str | None:
+    if _QUARTERLY_PERIOD_PATTERN.search(text):
+        return "quarterly"
+    if _ANNUAL_PERIOD_PATTERN.search(text):
+        return "annual"
+    return None
+
+
 def retrieve(
     question: str, documents: list[Document], limit: int = 3
 ) -> tuple[RetrievedPassage, ...]:
     question_terms = content_terms(question)
+    requested_period = _reporting_period(question)
     ranked: list[tuple[int, RetrievedPassage]] = []
     for document in documents:
         publication_month = date.fromisoformat(document.publication_date).strftime("%B")
         for passage in document.passages:
+            passage_period = _reporting_period(passage.text)
+            if requested_period and passage_period != requested_period:
+                continue
             searchable_text = (
                 f"{document.source_id} {document.title} "
                 f"{document.publication_date} {publication_month} {passage.text}"

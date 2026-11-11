@@ -70,6 +70,12 @@
     "passage_id": "net-income-fy2024"
   },
   {
+    "case_id": "unsupported-microsoft-quarterly-revenue",
+    "question": "What was Microsoft's quarterly revenue?",
+    "answerable": false,
+    "expected_response": "I don't know based on the provided documents."
+  },
+  {
     "case_id": "unsupported-company-revenue",
     "question": "What was Nvidia's quarterly revenue?",
     "answerable": false,

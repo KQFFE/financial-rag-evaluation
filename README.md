@@ -14,7 +14,9 @@ relevant passage, it returns an explicit "I don't know" without calling the
 answerer. When evidence is found, the no-model CLI returns up to three
 retrieved passages with citations. This lets comparison questions show evidence
 from more than one document, but the output is an extract rather than a
-generated summary and may include extra passages.
+generated summary and may include extra passages. If a question explicitly
+asks for quarterly or annual results, passages with a different reporting
+period are excluded; if no matching passage exists, the assistant abstains.
 
 The current benchmark includes the Federal Reserve's September 18 and
 November 7, 2024 FOMC statements and Microsoft's FY2024 Form 10-K. Cases cover
@@ -51,9 +53,10 @@ The tests use fixed sample responses instead of calling an AI model, so they
 run offline without an API key. They check that each benchmark question gets
 the expected answer or abstains, and that answers cite passages that support
 their claims. Other tests check unsupported questions, made-up claims,
-date-specific document retrieval, attempts to reveal hidden instructions,
-malicious instructions inside source documents, and saving live-evaluation
-results. GitHub Actions runs these tests on every push and pull request.
+reporting-period mismatches, date-specific document retrieval, attempts to
+reveal hidden instructions, malicious instructions inside source documents,
+and saving live-evaluation results. GitHub Actions runs these tests on every
+push and pull request.
 
 The grounding checker is deliberately lightweight: it checks expected answer
 text, citations, retrieved source passages, and overlapping content terms. It
