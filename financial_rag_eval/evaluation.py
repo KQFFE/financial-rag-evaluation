@@ -5,7 +5,12 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
-from financial_rag_eval.assistant import Answer, content_terms
+from financial_rag_eval.assistant import (
+    Answer,
+    RetrievedPassage,
+    _reporting_period,
+    content_terms,
+)
 
 
 _CITATION_PATTERN = re.compile(r"\[([a-z0-9-]+#[a-z0-9-]+)\]", re.IGNORECASE)
@@ -15,6 +20,14 @@ _FULL_DATE_PATTERN = re.compile(
     r"october|november|december)\s+\d{1,2},?\s+\d{4})\b",
     re.IGNORECASE,
 )
+_MONEY_PATTERN = re.compile(
+    r"(?<![\w.,])(?P<sign>[+-])?(?P<currency>\$|usd\s*)?"
+    r"(?P<amount>[+-]?\d+(?:,\d{3})*(?:\.\d+)?)"
+    r"(?:\s*(?P<unit>thousand|million|billion|trillion))?"
+    r"(?![\w,])",
+    re.IGNORECASE,
+)
+_YEAR_PATTERN = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")
 
 
 def _date_matches(text: str, expected: date) -> bool:
@@ -83,6 +96,54 @@ def _grade_fact_bindings(
     return issues
 
 
+def _financial_amounts(text: str) -> set[tuple[str, str]]:
+    return {
+        (
+            (match.group("sign") or "") + match.group("amount").replace(",", ""),
+            (match.group("unit") or "").casefold(),
+        )
+        for match in _MONEY_PATTERN.finditer(text)
+        if match.group("currency") or match.group("unit") or "," in match.group("amount")
+    }
+
+
+def _financial_dates(text: str) -> set[str]:
+    return {
+        re.sub(r"[,\s]+", " ", match.group().casefold()).strip()
+        for match in _FULL_DATE_PATTERN.finditer(text)
+    }
+
+
+def _grade_financial_claims(
+    text: str, cited_passages: list[RetrievedPassage]
+) -> list[str]:
+    passages = {
+        f"{item.source_id}#{item.passage.passage_id}".casefold(): item.passage.text
+        for item in cited_passages
+    }
+    parts = _CITATION_PATTERN.split(text)
+    issues: list[str] = []
+    for segment, citation in zip(parts[::2], parts[1::2] + [""]):
+        source = passages.get(citation.casefold(), "")
+        for claim in re.split(r"[;\n]", segment):
+            amounts = _financial_amounts(claim)
+            if not amounts:
+                continue
+            period = _reporting_period(claim)
+            if (
+                not amounts <= _financial_amounts(source)
+                or (period is not None and period != _reporting_period(source))
+                or not _financial_dates(claim) <= _financial_dates(source)
+                or not set(_YEAR_PATTERN.findall(claim))
+                <= set(_YEAR_PATTERN.findall(source))
+            ):
+                issues.append(
+                    "Financial amount, unit, or reporting period is not supported "
+                    "by its following citation."
+                )
+    return issues
+
+
 def grade_case(case: Mapping[str, Any], answer: Answer) -> list[str]:
     issues: list[str] = []
     if not case["answerable"]:
@@ -137,6 +198,8 @@ def grade_case(case: Mapping[str, Any], answer: Answer) -> list[str]:
             + ", ".join(sorted(unexpected_citations))
             + "."
         )
+
+    issues.extend(_grade_financial_claims(answer.text, cited_passages))
 
     date_labels = " ".join(
         " ".join(binding["date_labels"])

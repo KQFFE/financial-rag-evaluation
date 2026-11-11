@@ -66,6 +66,7 @@ their claims. The benchmark is also run through the actual no-model retrieval
 and response path. Other tests check unsupported questions, made-up claims,
 reporting-period mismatches, date-specific document retrieval, attempts to
 reveal hidden instructions, malicious instructions inside source documents,
+financial amounts paired with the wrong values, units, periods, or citations,
 and saving live-evaluation results. They also exercise the CLI and the full
 live-evaluation command with a simulated provider, including failure paths;
 they do not call the network. GitHub Actions runs these tests on every push
@@ -73,7 +74,7 @@ and pull request and requires 100% combined statement and branch coverage
 of the application package. Coverage measures executed code, not whether
 every possible input, claim, or attack has been tested.
 
-The latest local run on Python 3.14.7 passed 48 tests with 100% combined
+The latest local run on Python 3.14.7 passed 63 tests with 100% combined
 statement and branch coverage. This is an offline code-coverage result, not a
 measure of real-model answer quality.
 
@@ -81,10 +82,17 @@ The grounding checker is deliberately lightweight: it checks expected answer
 text, citations, retrieved source passages, and overlapping content terms. For
 the rate comparison, each rate must occur before its own source citation; the
 checker also catches swapped month labels, incorrect full dates, and some
-contradictory claims. This is a conservative text check: correct answers with
-different wording, formats, or citation placement may be rejected, and other
-contradictions may go undetected. It is not a semantic verifier and cannot
-establish that all possible claims are true.
+contradictory claims. For financial amounts written with a dollar sign,
+`USD`, a comma, or a magnitude such as `million`, it checks the amount and
+unit against the passage in the following citation. In the same claim, it
+also checks stated annual or quarterly periods, years, and full dates against
+that passage. Amounts without a following citation are rejected.
+
+These are conservative text checks: correct answers with different wording,
+formats, or citation placement may be rejected. Amounts written in words or
+without a recognized currency, comma, or unit may be missed, as can incorrect
+relationships between otherwise supported facts. The checker is not a
+semantic verifier and cannot establish that all possible claims are true.
 
 ## Optional live-model evaluation
 

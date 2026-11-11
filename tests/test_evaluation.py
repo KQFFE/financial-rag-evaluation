@@ -172,3 +172,103 @@ def test_comparison_rejects_missing_fact_citation() -> None:
     )
 
     assert any("paired" in issue for issue in grade_case(case, answer))
+
+
+@pytest.mark.parametrize(
+    "extra_claim",
+    [
+        "122,245 million",
+        "122,245",
+        "245,122 billion",
+        "$245,122",
+        "-245,122 million",
+        "-$245,122 million",
+        "245,122 million for the quarterly period",
+        "245,122 million for the fiscal year ended June 30, 2023",
+        "245,122 million for the fiscal year ended June 24, 2024",
+        "245,122 million for the fiscal year ended June 24, 2030",
+    ],
+)
+def test_financial_amounts_reject_unsupported_claims(extra_claim) -> None:
+    case = next(
+        c for c in load_benchmark() if c["case_id"] == "microsoft-revenue-fy2024"
+    )
+    evidence = FinancialAssistant(load_documents()).answer(
+        case["question"]
+    ).retrieved_passages
+    citation = f"{case['source_id']}#{case['passage_id']}"
+    answer = Answer(
+        f"245,122 million [{citation}]; {extra_claim} [{citation}]",
+        (citation,),
+        False,
+        evidence,
+    )
+
+    assert any("financial" in issue.casefold() for issue in grade_case(case, answer))
+
+
+def test_financial_amount_must_be_supported_by_its_own_citation() -> None:
+    case = next(
+        c for c in load_benchmark() if c["case_id"] == "microsoft-revenue-fy2024"
+    )
+    evidence = FinancialAssistant(load_documents()).answer(
+        case["question"]
+    ).retrieved_passages
+    revenue = "microsoft-2024-10k#revenue-fy2024"
+    income = "microsoft-2024-10k#net-income-fy2024"
+    assert income in {
+        f"{item.source_id}#{item.passage.passage_id}" for item in evidence
+    }
+    answer = Answer(
+        f"245,122 million [{revenue}]; 245,122 million [{income}]",
+        (revenue, income),
+        False,
+        evidence,
+    )
+
+    assert any("financial" in issue.casefold() for issue in grade_case(case, answer))
+
+
+def test_uncited_additional_financial_amount_is_rejected() -> None:
+    case = next(
+        c for c in load_benchmark() if c["case_id"] == "microsoft-revenue-fy2024"
+    )
+    evidence = FinancialAssistant(load_documents()).answer(
+        case["question"]
+    ).retrieved_passages
+    citation = f"{case['source_id']}#{case['passage_id']}"
+    answer = Answer(
+        f"245,122 million [{citation}]; 122,245 million.",
+        (citation,),
+        False,
+        evidence,
+    )
+
+    assert any("financial" in issue.casefold() for issue in grade_case(case, answer))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "245,122 million",
+        "$245,122 million for the fiscal year ended June 30, 2024",
+        "245,122 million for the fiscal year ended June 30, 2024",
+    ],
+)
+def test_supported_financial_amount_is_accepted(text) -> None:
+    case = next(
+        c for c in load_benchmark() if c["case_id"] == "microsoft-revenue-fy2024"
+    )
+    evidence = FinancialAssistant(load_documents()).answer(
+        case["question"]
+    ).retrieved_passages
+    citation = f"{case['source_id']}#{case['passage_id']}"
+    # Keep the benchmark's exact expected wording as well as the variant.
+    answer = Answer(
+        f"245,122 million [{citation}]; {text} [{citation}]",
+        (citation,),
+        False,
+        evidence,
+    )
+
+    assert grade_case(case, answer) == []
