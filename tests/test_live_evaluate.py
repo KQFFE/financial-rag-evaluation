@@ -1,7 +1,10 @@
 import json
+import hashlib
+import io
 import runpy
+import subprocess
 import sys
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -34,6 +37,59 @@ def test_live_evaluation_snapshot_records_model_and_case_results(tmp_path) -> No
     save_snapshot(output_path, snapshot)
 
     assert json.loads(output_path.read_text(encoding="utf-8")) == snapshot
+
+
+@pytest.mark.parametrize("dirty", [False, True])
+def test_code_identity_records_git_commit_dirty_state_and_source_hashes(
+    tmp_path, monkeypatch, dirty
+) -> None:
+    package = tmp_path / "financial_rag_eval"
+    package.mkdir()
+    (tmp_path / ".git").mkdir()
+    source = package / "evaluation.py"
+    source.write_bytes(b"first version\n")
+
+    def fake_run(command, **kwargs):
+        assert kwargs["cwd"] == tmp_path
+        if command[1:3] == ["rev-parse", "HEAD"]:
+            return subprocess.CompletedProcess(command, 0, stdout="a" * 40 + "\n")
+        assert command[1:3] == ["status", "--porcelain"]
+        return subprocess.CompletedProcess(command, 0, stdout=" M file\n" if dirty else "")
+
+    monkeypatch.setattr(live_evaluate.subprocess, "run", fake_run)
+    identity = live_evaluate.code_identity(package)
+
+    assert identity["git_commit"] == "a" * 40
+    assert identity["git_dirty"] is dirty
+    assert identity["git_error"] is None
+    assert identity["source_sha256"]["evaluation.py"] == hashlib.sha256(
+        b"first version\n"
+    ).hexdigest()
+    source.write_bytes(b"second version\n")
+    assert live_evaluate.code_identity(package)["source_sha256"] != identity["source_sha256"]
+
+
+@pytest.mark.parametrize("reason", ["no-checkout", "missing-git", "git-error"])
+def test_code_identity_reports_unavailable_git_without_losing_hashes(
+    tmp_path, monkeypatch, reason
+) -> None:
+    package = tmp_path / "financial_rag_eval"
+    package.mkdir()
+    (package / "assistant.py").write_bytes(b"test")
+    if reason != "no-checkout":
+        (tmp_path / ".git").mkdir()
+
+    def fail_git(*args, **kwargs):
+        if reason == "missing-git":
+            raise FileNotFoundError("git")
+        raise subprocess.CalledProcessError(1, ["git"])
+
+    monkeypatch.setattr(live_evaluate.subprocess, "run", fail_git)
+    identity = live_evaluate.code_identity(package)
+    assert identity["git_commit"] is None
+    assert identity["git_dirty"] is None
+    assert identity["git_error"]
+    assert identity["source_sha256"]["assistant.py"] == hashlib.sha256(b"test").hexdigest()
 
 
 @pytest.mark.parametrize(
@@ -252,6 +308,9 @@ def test_live_main_saves_complete_snapshot_and_returns_result(
     assert len(snapshot["safety_checks"]) == 2
     assert len(calls) == sum(case["answerable"] for case in cases) + 4
     assert snapshot["inputs"]["benchmark"] == cases
+    assert snapshot["code"]["source_sha256"]["live_evaluate.py"] == hashlib.sha256(
+        live_evaluate.Path(live_evaluate.__file__).read_bytes()
+    ).hexdigest()
     assert snapshot["inputs"]["benchmark_sha256"] == live_evaluate._input_digest(cases)
     assert snapshot["inputs"]["documents_sha256"] == live_evaluate._input_digest(
         snapshot["inputs"]["documents"]
@@ -294,6 +353,41 @@ def test_live_provider_error_is_not_reported_as_success(monkeypatch, tmp_path) -
     with pytest.raises(URLError, match="provider unavailable"):
         live_evaluate.main()
     assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (b'{"error":{"code":"credit_balance_exhausted"}}', "credit balance"),
+        (b'{"error":{"code":"insufficient_quota"}}', "credits or usage"),
+        (b'{"error":{"type":"insufficient_quota","code":null}}', "credits or usage"),
+        (b'{"error":{"code":"organization_spend_limit_exceeded"}}', "organization spend limit"),
+        (b'{"error":{"code":"project_spend_limit_exceeded"}}', "project spend limit"),
+        (b'{"error":{"code":"organization_usage_limit_exceeded"}}', "organization usage limit"),
+        (b'{"error":{"code":"slow_down"}}', "rate limit"),
+        (b'{"error":{"type":"rate_limit_error"}}', "rate limit"),
+        (b'{"error":{"code":"unexpected","message":"secret-test-key"}}', "rate limit or quota"),
+        (b'not json', "rate limit or quota"),
+        (b'[]', "rate limit or quota"),
+    ],
+)
+def test_openai_429_reports_safe_actionable_cause(monkeypatch, body, expected) -> None:
+    def failed_request(*_args, **_kwargs):
+        raise HTTPError("https://api.openai.com/", 429, "Too Many Requests", {}, io.BytesIO(body))
+
+    monkeypatch.setattr(live_evaluate, "urlopen", failed_request)
+    with pytest.raises(RuntimeError, match=expected) as exc:
+        OpenAIAnswerer("secret-test-key", "test-model")("system", "question")
+    assert "secret-test-key" not in str(exc.value)
+
+
+def test_other_http_errors_remain_explicit(monkeypatch) -> None:
+    def failed_request(*_args, **_kwargs):
+        raise HTTPError("https://api.openai.com/", 401, "Unauthorized", {}, io.BytesIO(b""))
+
+    monkeypatch.setattr(live_evaluate, "urlopen", failed_request)
+    with pytest.raises(HTTPError, match="401"):
+        OpenAIAnswerer("test-key", "test-model")("system", "question")
 
 
 def test_live_provider_malformed_response_fails_explicitly(monkeypatch) -> None:

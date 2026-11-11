@@ -42,15 +42,25 @@ Microsoft financial-fact paraphrases; the latter are not direct quotations.
 
 ### Source reuse
 
-The Federal Reserve excerpts are attributed to the linked Board statements.
-The [Board's website policies](https://www.federalreserve.gov/website-linking-policies.htm)
-warn that linked third-party material may have separate restrictions; the
-statements used here are hosted by the Board. The Microsoft facts are
-paraphrased from the linked SEC filing, not presented as SEC-authored text.
-The SEC filing is a third-party submission, so hosting it on a government site
-does not by itself establish unrestricted reuse. A definitive redistribution
-permission assessment has not been completed; review the relevant rights and
-terms before redistributing these materials. These notes are not legal advice.
+Assessment reviewed November 11, 2026:
+
+- The FOMC passages are short excerpts attributed to the Board-hosted
+  statements. [17 U.S.C. § 105](https://www.govinfo.gov/content/pkg/USCODE-2023-title17/html/USCODE-2023-title17-chap1-sec105.htm)
+  excludes U.S. government works from U.S. copyright protection, but being
+  hosted by the Board alone does not establish that status. The
+  [Board's website policies](https://www.federalreserve.gov/website-linking-policies.htm)
+  also warn that linked third-party material may have separate restrictions.
+  Authorship and any applicable redistribution rights for these statements
+  have not been independently confirmed.
+- The Microsoft passages are project-written paraphrases of two figures from
+  its SEC-filed annual report, not direct quotations. The
+  [U.S. Copyright Office](https://www.copyright.gov/help/faq/faq-protect.html)
+  explains that copyright does not protect facts, although expression can be
+  protected. SEC hosting does not make the third-party filing government-authored
+  or establish unrestricted reuse of the filing.
+
+This is a limited assessment, not legal advice or a definitive permission
+determination; check applicable rights before further redistribution.
 
 ## How to run
 
@@ -101,7 +111,7 @@ and pull request and requires 100% combined statement and branch coverage
 of the application package. Coverage measures executed code, not whether
 every possible input, claim, or attack has been tested.
 
-The latest local run on Python 3.14.7 passed 101 tests with 100% combined
+The latest local run on Python 3.14.7 passed 118 tests with 100% combined
 statement and branch coverage. This is an offline code-coverage result, not a
 measure of real-model answer quality.
 
@@ -139,9 +149,14 @@ Set `OPENAI_MODEL` to select another compatible model. The command prints a
 case-by-case grade and writes a JSON snapshot containing the model, timestamp,
 answers, citations, and grading issues. The snapshot also embeds the loaded
 benchmark cases, document data, system instructions, and SHA-256 digests of
-canonical JSON for the cases and documents. It does not record the evaluator
-code version; retain the commit or working-tree revision separately when
-comparing runs. Live output can vary and may incur API costs; it is not run by
+canonical JSON for the cases and documents. At startup it records SHA-256
+hashes of the package's Python source files and, when available, the Git
+commit and whether the whole working tree has changes. A missing checkout or
+failed Git command is recorded in `code.git_error`; file hashes still identify
+the on-disk source files. A dirty flag does not preserve those changes: keep
+the corresponding source separately if the run needs to be reproduced. These
+hashes describe files on disk at startup, so avoid editing code during a run.
+Live output can vary and may incur API costs; it is not run by
 CI. No live-model result is included in this repository yet. The live command
 sends application instructions as a system message and
 questions plus retrieved passages as a separate user message. It also runs two
@@ -162,3 +177,11 @@ alternative wording.
 
 The benchmark is a small demo with cases reviewed by hand; passing it does not
 establish general model safety or financial accuracy.
+
+If OpenAI returns HTTP 429, the command reports recognized credit, spending
+limit, or request-rate errors without displaying the provider's raw error
+message. For credit or quota errors, check
+[API billing](https://platform.openai.com/settings/organization/billing/overview)
+and your organization or project limits; ChatGPT subscriptions are billed
+separately. For a request-rate limit, wait before retrying. Unknown 429 errors
+require checking both possibilities. The command does not retry automatically.

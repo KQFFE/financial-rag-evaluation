@@ -5,10 +5,12 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 from dataclasses import asdict
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from financial_rag_eval.assistant import (
@@ -33,6 +35,16 @@ _MAGNITUDES = {
     "million": 1_000_000,
     "billion": 1_000_000_000,
     "trillion": 1_000_000_000_000,
+}
+_RATE_LIMIT_CAUSES = {
+    "credit_balance_exhausted": "The OpenAI credit balance is exhausted; check API billing.",
+    "insufficient_quota": "Check OpenAI API credits or usage limits before retrying.",
+    "organization_spend_limit_exceeded": "The OpenAI organization spend limit was reached.",
+    "project_spend_limit_exceeded": "The OpenAI project spend limit was reached.",
+    "organization_usage_limit_exceeded": "The OpenAI organization usage limit was reached.",
+    "slow_down": "The OpenAI rate limit was reached; wait before retrying.",
+    "rate_limit_exceeded": "The OpenAI rate limit was reached; wait before retrying.",
+    "rate_limit_error": "The OpenAI rate limit was reached; wait before retrying.",
 }
 
 
@@ -86,6 +98,42 @@ def _input_digest(value: object) -> str:
         value, ensure_ascii=True, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def code_identity(package_dir: Path) -> dict[str, object]:
+    sources = {
+        str(path.relative_to(package_dir)).replace("\\", "/"): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in sorted(package_dir.rglob("*.py"))
+    }
+    root = package_dir.parent
+    result: dict[str, object] = {
+        "source_sha256": sources,
+        "git_commit": None,
+        "git_dirty": None,
+        "git_error": None,
+    }
+    if not (root / ".git").exists():
+        result["git_error"] = "Source package is not in a Git checkout."
+        return result
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=root, check=True,
+            capture_output=True, text=True,
+        ).stdout.strip()
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=normal"],
+            cwd=root, check=True, capture_output=True, text=True,
+        ).stdout
+    except FileNotFoundError:
+        result["git_error"] = "Git executable was not found."
+    except subprocess.CalledProcessError as error:
+        result["git_error"] = f"Git metadata command failed with exit code {error.returncode}."
+    else:
+        result["git_commit"] = commit
+        result["git_dirty"] = bool(status)
+    return result
 
 
 def run_prompt_injection_checks(answerer: Answerer) -> list[dict[str, object]]:
@@ -190,8 +238,25 @@ class OpenAIAnswerer:
             },
             method="POST",
         )
-        with urlopen(request, timeout=30) as response:
-            result = json.loads(response.read().decode("utf-8"))
+        try:
+            with urlopen(request, timeout=30) as response:
+                result = json.loads(response.read().decode("utf-8"))
+        except HTTPError as error:
+            if error.code != 429:
+                raise
+            try:
+                payload = json.loads(error.read().decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                payload = None
+            details = payload.get("error") if isinstance(payload, dict) else None
+            code = details.get("code") if isinstance(details, dict) else None
+            error_type = details.get("type") if isinstance(details, dict) else None
+            if not isinstance(code, str) or code not in _RATE_LIMIT_CAUSES:
+                code = error_type
+            cause = _RATE_LIMIT_CAUSES.get(code) if isinstance(code, str) else None
+            if cause is None:
+                cause = "OpenAI returned a rate limit or quota error; check API billing and limits."
+            raise RuntimeError(f"OpenAI HTTP 429: {cause}") from error
         return result["choices"][0]["message"]["content"]
 
 
@@ -213,6 +278,7 @@ def main() -> int:
     model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
     documents = load_documents()
     benchmark = load_benchmark()
+    code = code_identity(Path(__file__).resolve().parent)
     answerer = OpenAIAnswerer(api_key=api_key, model=model)
     assistant = FinancialAssistant(documents, answerer)
     failures = 0
@@ -245,6 +311,7 @@ def main() -> int:
         failures += bool(check["issues"])
     document_inputs = [asdict(document) for document in documents]
     snapshot = {
+        "code": code,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "model": model,
         "case_count": len(results),
