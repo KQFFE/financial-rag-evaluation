@@ -201,10 +201,10 @@ class FinancialAssistant:
             return Answer(ABSTENTION_MESSAGE, (), True, ())
 
         if self._answerer is None:
-            best = evidence[0]
-            response = (
-                f"{best.passage.text} "
-                f"[{best.source_id}#{best.passage.passage_id}]"
+            response = "\n".join(
+                f"{item.passage.text} "
+                f"[{item.source_id}#{item.passage.passage_id}]"
+                for item in evidence
             )
         else:
             response = self._answerer(_build_prompt(question, evidence))

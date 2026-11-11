@@ -11,8 +11,10 @@ documents and returns citations in the form `[source_id#passage_id]`. It uses
 deterministic keyword overlap; there is no web UI, vector database,
 or model call in the local command-line interface (CLI). If retrieval finds no
 relevant passage, it returns an explicit "I don't know" without calling the
-answerer. When evidence is found, the CLI returns the matching passage itself,
-so the demo's answer is an extract rather than a generated summary.
+answerer. When evidence is found, the no-model CLI returns up to three
+retrieved passages with citations. This lets comparison questions show evidence
+from more than one document, but the output is an extract rather than a
+generated summary and may include extra passages.
 
 The current benchmark includes the Federal Reserve's September 18 and
 November 7, 2024 FOMC statements and Microsoft's FY2024 Form 10-K. Cases cover

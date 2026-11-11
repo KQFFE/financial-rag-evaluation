@@ -51,9 +51,7 @@ def test_date_specific_question_selects_matching_statement() -> None:
         "What target range did the FOMC set on November 7, 2024?"
     )
 
-    assert answer.citations == (
-        "fomc-statement-2024-11-07#target-range",
-    )
+    assert answer.citations[0] == "fomc-statement-2024-11-07#target-range"
 
 
 def test_sec_10k_questions_return_dated_facts_with_citations() -> None:
@@ -70,6 +68,36 @@ def test_sec_10k_questions_return_dated_facts_with_citations() -> None:
         )
 
         assert grade_case(case, answer) == []
+
+
+def test_default_answer_includes_both_sources_for_comparison_question() -> None:
+    case = next(
+        case
+        for case in load_benchmark()
+        if case["case_id"] == "target-range-comparison"
+    )
+
+    answer = FinancialAssistant(load_documents()).answer(case["question"])
+
+    assert {
+        "fomc-statement-2024-09-18#target-range",
+        "fomc-statement-2024-11-07#target-range",
+    }.issubset(answer.citations)
+    assert "4-3/4 to 5 percent" in answer.text
+    assert "4-1/2 to 4-3/4 percent" in answer.text
+
+
+def test_default_answer_returns_cited_sec_filing_fact() -> None:
+    case = next(
+        case
+        for case in load_benchmark()
+        if case["case_id"] == "microsoft-revenue-fy2024"
+    )
+
+    answer = FinancialAssistant(load_documents()).answer(case["question"])
+
+    assert "245,122 million" in answer.text
+    assert f"{case['source_id']}#{case['passage_id']}" in answer.citations
 
 
 def test_every_benchmark_case_has_a_valid_grounded_outcome() -> None:
