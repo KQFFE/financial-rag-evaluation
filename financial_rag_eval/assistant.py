@@ -61,6 +61,11 @@ _UNSUPPORTED_SCOPE_PATTERN = re.compile(
     r"people's bank of china)\b",
     re.IGNORECASE,
 )
+_REQUIRED_METRIC_TERMS = {
+    "profit", "profits", "profitability", "growth", "margin", "margins",
+    "forecast", "outlook", "guidance", "dividend", "dividends", "eps",
+    "debt", "expenses", "cash",
+}
 _INSTRUCTION_EXTRACTION_PATTERNS = (
     re.compile(
         r"\b(?:reveal|show|print|repeat|disclose|quote)\b.{0,80}"
@@ -245,6 +250,10 @@ def retrieve(
                 f"{document.publication_date} {publication_month} {passage.text}"
             )
             if not requested_entities <= content_terms(searchable_text):
+                continue
+            if not question_terms & _REQUIRED_METRIC_TERMS <= content_terms(
+                searchable_text
+            ):
                 continue
             overlap = len(question_terms & content_terms(searchable_text))
             if overlap >= MINIMUM_TERM_OVERLAP:

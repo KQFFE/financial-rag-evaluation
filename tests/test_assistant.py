@@ -74,6 +74,10 @@ def test_quarterly_question_does_not_use_annual_revenue() -> None:
         "What was the target range in the previous year?",
         "What was Microsoft revenue two years ago?",
         "What is Microsoft's revenue this year?",
+        "What was Microsoft's profit growth rate in 2024?",
+        "What was Microsoft's operating margin in FY2024?",
+        "What is Microsoft's revenue forecast for 2025?",
+        "What dividend did Microsoft pay in FY2024?",
         "What target ranges did the FOMC set on September 18, 2024 and "
         "November 7, 2025?",
     ],

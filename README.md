@@ -35,7 +35,9 @@ other date and company-name forms may be missed, and a contextual date or
 possessive can cause an unnecessary abstention. Questions that use relative
 time (`last year`, `previous quarter`, `two years ago`), a non-USD currency
 (`euros`, `GBP`, `yen`), or another central bank (`ECB`, `Bank of England`)
-also abstain, because the documents cannot support them. Other phrasings of
+also abstain, because the documents cannot support them. Questions naming a
+metric the passages don't contain (`profit`, `growth`, `margin`, `forecast`,
+`dividend`, and a few similar words) abstain too. Other phrasings of
 these ideas are not detected.
 
 The current benchmark includes the Federal Reserve's September 18 and
@@ -119,7 +121,7 @@ and pull request and requires 100% combined statement and branch coverage
 of the application package. Coverage measures executed code, not whether
 every possible input, claim, or attack has been tested.
 
-The latest local run on Python 3.14.7 passed 127 tests with 100% combined
+The latest local run on Python 3.14.7 passed 131 tests with 100% combined
 statement and branch coverage. This is an offline code-coverage result, not a
 measure of real-model answer quality.
 
