@@ -28,6 +28,12 @@ _MONEY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _YEAR_PATTERN = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")
+_RATE_PATTERN = re.compile(
+    r"(?<![\w./-])\d+(?:-\d+/\d+|/\d+|\.\d+)?"
+    r"(?:\s+to\s+\d+(?:-\d+/\d+|/\d+|\.\d+)?)?"
+    r"(?:\s+(?:percent|percentage points?)\b|\s*%)",
+    re.IGNORECASE,
+)
 
 
 def _date_matches(text: str, expected: date) -> bool:
@@ -144,6 +150,28 @@ def _grade_financial_claims(
     return issues
 
 
+def _grade_rates(text: str, cited_passages: list[RetrievedPassage]) -> list[str]:
+    passages = {
+        f"{item.source_id}#{item.passage.passage_id}".casefold(): item.passage.text
+        for item in cited_passages
+    }
+    parts = _CITATION_PATTERN.split(text)
+    issues = []
+    for segment, citation in zip(parts[::2], parts[1::2] + [""]):
+        source = passages.get(citation.casefold(), "")
+        rates = {
+            re.sub(r"\s*%$", " percent", match.group().casefold())
+            for match in _RATE_PATTERN.finditer(segment)
+        }
+        supported = {
+            re.sub(r"\s*%$", " percent", match.group().casefold())
+            for match in _RATE_PATTERN.finditer(source)
+        }
+        if not rates <= supported:
+            issues.append("Rate is not supported by its following citation.")
+    return issues
+
+
 def grade_case(case: Mapping[str, Any], answer: Answer) -> list[str]:
     issues: list[str] = []
     if not case["answerable"]:
@@ -200,6 +228,7 @@ def grade_case(case: Mapping[str, Any], answer: Answer) -> list[str]:
         )
 
     issues.extend(_grade_financial_claims(answer.text, cited_passages))
+    issues.extend(_grade_rates(answer.text, cited_passages))
 
     date_labels = " ".join(
         " ".join(binding["date_labels"])

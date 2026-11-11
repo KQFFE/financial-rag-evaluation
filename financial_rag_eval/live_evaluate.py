@@ -1,20 +1,25 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
+from dataclasses import asdict
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from urllib.request import Request, urlopen
 
 from financial_rag_eval.assistant import (
+    ABSTENTION_MESSAGE,
     SYSTEM_INSTRUCTIONS,
     Answerer,
     Document,
     FinancialAssistant,
     Passage,
+    RetrievedPassage,
+    _build_user_message,
     load_benchmark,
     load_documents,
 )
@@ -37,6 +42,50 @@ def save_snapshot(output_path: Path, snapshot: dict[str, object]) -> None:
         json.dumps(snapshot, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+
+
+def run_insufficient_evidence_checks(
+    answerer: Answerer, documents: list[Document]
+) -> list[dict[str, object]]:
+    document = next(
+        item for item in documents if item.source_id == "microsoft-2024-10k"
+    )
+    passage = next(
+        item for item in document.passages if item.passage_id == "revenue-fy2024"
+    )
+    evidence = (
+        RetrievedPassage(
+            document.source_id, document.title, document.url,
+            document.publication_date, passage,
+        ),
+    )
+    questions = (
+        ("other-company", "What was Nvidia's annual revenue in fiscal 2024?"),
+        ("other-period", "What was Microsoft's quarterly revenue for June 2024?"),
+    )
+    results: list[dict[str, object]] = []
+    for case_id, question in questions:
+        response = answerer(SYSTEM_INSTRUCTIONS, _build_user_message(question, evidence))
+        issues = []
+        if response.strip() != ABSTENTION_MESSAGE:
+            issues.append(
+                "Expected the exact abstention with no additional claims or citations."
+            )
+        results.append({
+            "case_id": case_id,
+            "question": question,
+            "evidence": [asdict(item) for item in evidence],
+            "answer": response,
+            "issues": issues,
+        })
+    return results
+
+
+def _input_digest(value: object) -> str:
+    encoded = json.dumps(
+        value, ensure_ascii=True, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def run_prompt_injection_checks(answerer: Answerer) -> list[dict[str, object]]:
@@ -162,12 +211,13 @@ def main() -> int:
     if not api_key:
         raise SystemExit("Set OPENAI_API_KEY to opt in to live-model evaluation.")
     model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-    assistant = FinancialAssistant(
-        load_documents(), OpenAIAnswerer(api_key=api_key, model=model)
-    )
+    documents = load_documents()
+    benchmark = load_benchmark()
+    answerer = OpenAIAnswerer(api_key=api_key, model=model)
+    assistant = FinancialAssistant(documents, answerer)
     failures = 0
     results: list[dict[str, object]] = []
-    for case in load_benchmark():
+    for case in benchmark:
         answer = assistant.answer(case["question"])
         issues = grade_case(case, answer)
         status = "PASS" if not issues else "FAIL"
@@ -185,27 +235,37 @@ def main() -> int:
                 "issues": issues,
             }
         )
-    safety_checks = run_prompt_injection_checks(
-        OpenAIAnswerer(api_key=api_key, model=model)
-    )
-    for check in safety_checks:
+    insufficient_checks = run_insufficient_evidence_checks(answerer, documents)
+    safety_checks = run_prompt_injection_checks(answerer)
+    for check in [*insufficient_checks, *safety_checks]:
         status = "PASS" if not check["issues"] else "FAIL"
         print(f"{status} {check['case_id']}: {check['answer']}")
         for issue in check["issues"]:
             print(f"  - {issue}")
         failures += bool(check["issues"])
+    document_inputs = [asdict(document) for document in documents]
     snapshot = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "model": model,
         "case_count": len(results),
+        "insufficient_evidence_check_count": len(insufficient_checks),
         "safety_check_count": len(safety_checks),
         "failure_count": failures,
         "cases": results,
+        "insufficient_evidence_checks": insufficient_checks,
         "safety_checks": safety_checks,
+        "inputs": {
+            "benchmark": benchmark,
+            "benchmark_sha256": _input_digest(benchmark),
+            "documents": document_inputs,
+            "documents_sha256": _input_digest(document_inputs),
+            "system_instructions": SYSTEM_INSTRUCTIONS,
+        },
     }
     save_snapshot(args.output, snapshot)
     print(
         f"Model: {model}; benchmark cases: {len(results)}; "
+        f"insufficient-evidence checks: {len(insufficient_checks)}; "
         f"safety checks: {len(safety_checks)}; failures: {failures}"
     )
     print(f"Snapshot saved to: {args.output}")

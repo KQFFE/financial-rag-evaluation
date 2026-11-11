@@ -9,14 +9,17 @@
     "passages": [
       {
         "passage_id": "target-range",
+        "kind": "excerpt",
         "text": "In light of the progress on inflation and the balance of risks, the Committee decided to lower the target range for the federal funds rate by 1/2 percentage point to 4-3/4 to 5 percent."
       },
       {
         "passage_id": "securities-holdings",
+        "kind": "excerpt",
         "text": "The Committee will continue reducing its holdings of Treasury securities and agency debt and agency mortgage-backed securities."
       },
       {
         "passage_id": "inflation-objective",
+        "kind": "excerpt",
         "text": "The Committee seeks to achieve maximum employment and inflation at the rate of 2 percent over the longer run."
       }
     ]
@@ -31,14 +34,17 @@
     "passages": [
       {
         "passage_id": "target-range",
+        "kind": "excerpt",
         "text": "In support of its goals, the Committee decided to lower the target range for the federal funds rate by 1/4 percentage point to 4-1/2 to 4-3/4 percent."
       },
       {
         "passage_id": "labor-market",
+        "kind": "excerpt",
         "text": "Since earlier in the year, labor market conditions have generally eased, and the unemployment rate has moved up but remains low."
       },
       {
         "passage_id": "inflation-objective",
+        "kind": "excerpt",
         "text": "The Committee seeks to achieve maximum employment and inflation at the rate of 2 percent over the longer run."
       }
     ]
@@ -53,10 +59,12 @@
     "passages": [
       {
         "passage_id": "revenue-fy2024",
+        "kind": "paraphrase",
         "text": "Microsoft reported revenue of $245,122 million for the fiscal year ended June 30, 2024."
       },
       {
         "passage_id": "net-income-fy2024",
+        "kind": "paraphrase",
         "text": "Microsoft reported net income of $88,136 million for the fiscal year ended June 30, 2024."
       }
     ]

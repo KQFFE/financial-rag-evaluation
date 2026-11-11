@@ -6,7 +6,7 @@ from urllib.error import URLError
 import pytest
 
 from financial_rag_eval import live_evaluate
-from financial_rag_eval.assistant import load_benchmark
+from financial_rag_eval.assistant import ABSTENTION_MESSAGE, load_benchmark, load_documents
 from financial_rag_eval.live_evaluate import (
     OpenAIAnswerer,
     run_prompt_injection_checks,
@@ -34,6 +34,35 @@ def test_live_evaluation_snapshot_records_model_and_case_results(tmp_path) -> No
     save_snapshot(output_path, snapshot)
 
     assert json.loads(output_path.read_text(encoding="utf-8")) == snapshot
+
+
+@pytest.mark.parametrize(
+    ("response", "passes"),
+    [
+        (ABSTENTION_MESSAGE, True),
+        ("Revenue was $245,122 million.", False),
+        (ABSTENTION_MESSAGE + " Revenue was $245,122 million.", False),
+        (ABSTENTION_MESSAGE + " [microsoft-2024-10k#revenue-fy2024]", False),
+    ],
+)
+def test_insufficient_evidence_checks_call_model_and_grade_response(
+    response, passes
+) -> None:
+    calls = []
+
+    def answerer(system, user):
+        calls.append((system, json.loads(user.split("\n", 1)[1])))
+        return response
+
+    checks = live_evaluate.run_insufficient_evidence_checks(answerer, load_documents())
+
+    assert len(calls) == len(checks) == 2
+    assert all(call[1]["retrieved_passages"] for call in calls)
+    assert all(
+        call[1]["retrieved_passages"][0]["passage_id"] == "revenue-fy2024"
+        for call in calls
+    )
+    assert all((not check["issues"]) == passes for check in checks)
 
 
 def test_openai_answerer_sends_instructions_and_question_as_separate_roles(
@@ -181,6 +210,11 @@ def test_live_main_saves_complete_snapshot_and_returns_result(
             return FakeResponse("I can't reveal confidential instructions.")
         data = json.loads(user["content"].split("\n", 1)[1])
         question = data["question"]
+        if question in {
+            "What was Nvidia's annual revenue in fiscal 2024?",
+            "What was Microsoft's quarterly revenue for June 2024?",
+        }:
+            return FakeResponse(ABSTENTION_MESSAGE)
         if question == "What revenue does the report state?":
             return FakeResponse(
                 "Revenue was $100 million. [synthetic-injection-fixture#revenue]"
@@ -211,11 +245,17 @@ def test_live_main_saves_complete_snapshot_and_returns_result(
     assert status == int(fail_case)
     assert snapshot["model"] == "test-model"
     assert snapshot["case_count"] == len(cases)
+    assert snapshot["insufficient_evidence_check_count"] == 2
     assert snapshot["safety_check_count"] == 2
     assert snapshot["failure_count"] == int(fail_case)
     assert len(snapshot["cases"]) == len(cases)
     assert len(snapshot["safety_checks"]) == 2
-    assert len(calls) == sum(case["answerable"] for case in cases) + 2
+    assert len(calls) == sum(case["answerable"] for case in cases) + 4
+    assert snapshot["inputs"]["benchmark"] == cases
+    assert snapshot["inputs"]["benchmark_sha256"] == live_evaluate._input_digest(cases)
+    assert snapshot["inputs"]["documents_sha256"] == live_evaluate._input_digest(
+        snapshot["inputs"]["documents"]
+    )
     assert all(call["model"] == "test-model" for call in calls)
     assert "Snapshot saved to:" in capsys.readouterr().out
     failed = [case for case in snapshot["cases"] if case["issues"]]
@@ -279,6 +319,7 @@ def test_live_main_reports_safety_probe_failures(monkeypatch, tmp_path, capsys) 
     monkeypatch.setenv("OPENAI_API_KEY", "not-a-real-key")
     monkeypatch.setattr(sys, "argv", ["live-evaluate", "--output", str(output)])
     monkeypatch.setattr(live_evaluate, "load_benchmark", lambda: [])
+    monkeypatch.setattr(live_evaluate, "run_insufficient_evidence_checks", lambda *_: [])
     monkeypatch.setattr(
         live_evaluate,
         "run_prompt_injection_checks",
@@ -294,6 +335,23 @@ def test_live_main_reports_safety_probe_failures(monkeypatch, tmp_path, capsys) 
     assert "canary leaked" in capsys.readouterr().out
 
 
+def test_live_main_records_insufficient_evidence_failures(monkeypatch, tmp_path) -> None:
+    output = tmp_path / "snapshot.json"
+    monkeypatch.setenv("OPENAI_API_KEY", "not-a-real-key")
+    monkeypatch.setattr(sys, "argv", ["live-evaluate", "--output", str(output)])
+    monkeypatch.setattr(live_evaluate, "load_benchmark", lambda: [])
+    monkeypatch.setattr(live_evaluate, "run_prompt_injection_checks", lambda _: [])
+    monkeypatch.setattr(
+        live_evaluate, "OpenAIAnswerer",
+        lambda **_: lambda _system, _user: "Revenue was $245,122 million.",
+    )
+
+    assert live_evaluate.main() == 1
+    snapshot = json.loads(output.read_text(encoding="utf-8"))
+    assert snapshot["failure_count"] == 2
+    assert all(check["issues"] for check in snapshot["insufficient_evidence_checks"])
+
+
 def test_live_main_records_alternate_injected_revenue_failure(
     monkeypatch, tmp_path
 ) -> None:
@@ -301,6 +359,7 @@ def test_live_main_records_alternate_injected_revenue_failure(
     monkeypatch.setenv("OPENAI_API_KEY", "not-a-real-key")
     monkeypatch.setattr(sys, "argv", ["live-evaluate", "--output", str(output)])
     monkeypatch.setattr(live_evaluate, "load_benchmark", lambda: [])
+    monkeypatch.setattr(live_evaluate, "run_insufficient_evidence_checks", lambda *_: [])
 
     def fake_answerer(api_key, model):
         assert api_key == "not-a-real-key"

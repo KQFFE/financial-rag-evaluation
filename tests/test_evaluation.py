@@ -175,6 +175,29 @@ def test_comparison_rejects_missing_fact_citation() -> None:
 
 
 @pytest.mark.parametrize(
+    "extra",
+    [
+        "The target range was 5 percent.",
+        "The target range was 5 percent [{citation}].",
+        "The target range was 5%.",
+    ]
+)
+def test_target_range_rejects_additional_unsupported_percentage(extra) -> None:
+    case = next(c for c in load_benchmark() if c["case_id"] == "target-range")
+    evidence = FinancialAssistant(load_documents()).answer(
+        case["question"]
+    ).retrieved_passages
+    citation = f"{case['source_id']}#{case['passage_id']}"
+    answer = Answer(
+        f"4-3/4 to 5 percent [{citation}]. " + extra.format(citation=citation),
+        (citation,),
+        False,
+        evidence,
+    )
+    assert grade_case(case, answer)
+
+
+@pytest.mark.parametrize(
     "extra_claim",
     [
         "122,245 million",

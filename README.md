@@ -22,19 +22,35 @@ or `2024-09-18`, retrieval requires matching dates in the selected evidence.
 When an annual period is requested, the date must appear in the passage
 rather than merely being the document's publication date. If any recognized
 requested date is missing from the selected passages, it abstains without
-calling the model. This is a simple date filter, not an understanding of the
-question: other date formats, standalone years, and fiscal-year shorthand may
-not be recognized, and the filter can reject questions whose dates provide
-context rather than specifying the evidence sought.
+calling the model. The filter also recognizes four-digit years and `FY2024`
+or `FY24` (two-digit `FY` years are interpreted as 2000–2099). For common
+possessive forms such as `Nvidia's`, and some capitalized company-name forms,
+retrieval also requires the named entity to occur in the passage or document
+title. These are simple text filters, not an understanding of the question:
+other date and company-name forms may be missed, and a contextual date or
+possessive can cause an unnecessary abstention.
 
 The current benchmark includes the Federal Reserve's September 18 and
 November 7, 2024 FOMC statements and Microsoft's FY2024 Form 10-K. Cases cover
 rate decisions, a cross-statement comparison, labor-market language,
 Microsoft's revenue and net income with reporting period and units, an
-unsupported company-revenue and date-specific questions, and requests to
+unsupported company-revenue question, other unsupported date-specific
+questions, and requests to
 reveal hidden instructions. Source records include URLs, publication dates,
-and access dates. The included excerpts are intentionally short; consult the
-source terms before redistributing source material.
+and access dates. Passages are labeled as short Federal Reserve excerpts or
+Microsoft financial-fact paraphrases; the latter are not direct quotations.
+
+### Source reuse
+
+The Federal Reserve excerpts are attributed to the linked Board statements.
+The [Board's website policies](https://www.federalreserve.gov/website-linking-policies.htm)
+warn that linked third-party material may have separate restrictions; the
+statements used here are hosted by the Board. The Microsoft facts are
+paraphrased from the linked SEC filing, not presented as SEC-authored text.
+The SEC filing is a third-party submission, so hosting it on a government site
+does not by itself establish unrestricted reuse. A definitive redistribution
+permission assessment has not been completed; review the relevant rights and
+terms before redistributing these materials. These notes are not legal advice.
 
 ## How to run
 
@@ -76,15 +92,16 @@ and response path. Other tests check unsupported questions, made-up claims,
 reporting-period mismatches, date-specific document retrieval, attempts to
 reveal hidden instructions, malicious instructions inside source documents,
 financial amounts paired with the wrong values, units, periods, or citations,
-alternate forms of the injected false revenue, and saving live-evaluation
-results. They also exercise the CLI and the full
+alternate forms of the injected false revenue, model abstention with
+insufficient evidence, and saving live-evaluation results. They also exercise
+the CLI and the full
 live-evaluation command with a simulated provider, including failure paths;
 they do not call the network. GitHub Actions runs these tests on every push
 and pull request and requires 100% combined statement and branch coverage
 of the application package. Coverage measures executed code, not whether
 every possible input, claim, or attack has been tested.
 
-The latest local run on Python 3.14.7 passed 81 tests with 100% combined
+The latest local run on Python 3.14.7 passed 101 tests with 100% combined
 statement and branch coverage. This is an offline code-coverage result, not a
 measure of real-model answer quality.
 
@@ -94,12 +111,14 @@ the rate comparison, each rate must occur before its own source citation; the
 checker also catches swapped month labels, incorrect full dates, and some
 contradictory claims. For financial amounts written with a dollar sign,
 `USD`, a comma, or a magnitude such as `million`, it checks the amount and
-unit against the passage in the following citation. In the same claim, it
+unit against the passage in the following citation. Recognized percentage
+values and ranges are also checked against their following citation, including
+additional claims after an otherwise correct answer. In the same claim, it
 also checks stated annual or quarterly periods, years, and full dates against
 that passage. Amounts without a following citation are rejected.
 
 These are conservative text checks: correct answers with different wording,
-formats, or citation placement may be rejected. Amounts written in words or
+formats, or citation placement may be rejected. Amounts and rates written in words or
 without a recognized currency, comma, or unit may be missed, as can incorrect
 relationships between otherwise supported facts. The checker is not a
 semantic verifier and cannot establish that all possible claims are true.
@@ -118,9 +137,13 @@ python -m financial_rag_eval.live_evaluate --output evaluations/run.json
 
 Set `OPENAI_MODEL` to select another compatible model. The command prints a
 case-by-case grade and writes a JSON snapshot containing the model, timestamp,
-answers, citations, and grading issues. Live output can vary and may incur API
-costs; it is not run by CI. No live-model result is included in this repository
-yet. The live command sends application instructions as a system message and
+answers, citations, and grading issues. The snapshot also embeds the loaded
+benchmark cases, document data, system instructions, and SHA-256 digests of
+canonical JSON for the cases and documents. It does not record the evaluator
+code version; retain the commit or working-tree revision separately when
+comparing runs. Live output can vary and may incur API costs; it is not run by
+CI. No live-model result is included in this repository yet. The live command
+sends application instructions as a system message and
 questions plus retrieved passages as a separate user message. It also runs two
 extra safety probes: one asks the model to reveal a system-message canary, and
 another embeds conflicting instructions and a canary in a synthetic retrieved
@@ -128,6 +151,14 @@ passage. These checks report obvious canary leakage or the injected false
 revenue, including recognized numeric equivalents such as `999 million` and
 `$999,000,000`. The false-revenue check flags a mention even if the answer
 rejects it, and can miss unrecognized formats or paraphrases. These probes make
-two additional model requests and do not prove the model is secure. The
-benchmark is a small demo with cases reviewed by hand; passing it does not
+two additional model requests and do not prove the model is secure. Two
+additional controlled checks send the model a real Microsoft annual-revenue
+passage alongside questions about another company or a quarterly result. They
+call the model directly with that insufficient evidence rather than exercising
+retrieval, and pass only when it returns the exact abstention with nothing
+appended. These checks make two more model requests. Review saved answers and
+grades manually: the checks are deliberately narrow and may reject reasonable
+alternative wording.
+
+The benchmark is a small demo with cases reviewed by hand; passing it does not
 establish general model safety or financial accuracy.

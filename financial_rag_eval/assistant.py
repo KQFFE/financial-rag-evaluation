@@ -44,6 +44,15 @@ _DATE_PATTERN = re.compile(
     rf"(?:(?P<day>\d{{1,2}}),?\s+)?(?P<year>\d{{4}}))\b",
     re.IGNORECASE,
 )
+_YEAR_PATTERN = re.compile(r"\b(?:fy\s*)?((?:19|20)\d{2})\b", re.IGNORECASE)
+_SHORT_FY_PATTERN = re.compile(r"\bfy\s*(\d{2})\b", re.IGNORECASE)
+_POSSESSIVE_PATTERN = re.compile(r"\b([A-Za-z][A-Za-z0-9-]*)['\u2019]s\b")
+_COMPANY_PATTERN = re.compile(
+    r"(?i:\b(?:revenue|income)\s+(?:of|for)\s+)"
+    r"(?P<object>[A-Z][A-Za-z0-9-]+)\b|"
+    r"(?i:\b(?:was|did)\s+)(?P<subject>[A-Z][A-Za-z0-9-]+)"
+    r"(?=\s+(?i:(?:annual|quarterly|revenue|income|report))\b)"
+)
 _INSTRUCTION_EXTRACTION_PATTERNS = (
     re.compile(
         r"\b(?:reveal|show|print|repeat|disclose|quote)\b.{0,80}"
@@ -74,6 +83,7 @@ class Answerer(Protocol):
 class Passage:
     passage_id: str
     text: str
+    kind: str = "unspecified"
 
 
 @dataclass(frozen=True)
@@ -84,6 +94,7 @@ class Document:
     publication_date: str
     access_date: str
     passages: tuple[Passage, ...]
+    reuse_note: str = ""
 
 
 @dataclass(frozen=True)
@@ -119,8 +130,12 @@ def load_documents(path: Path | None = None) -> list[Document]:
             url=item["url"],
             publication_date=item["publication_date"],
             access_date=item["access_date"],
+            reuse_note=item.get("reuse_note", ""),
             passages=tuple(
-                Passage(passage["passage_id"], passage["text"])
+                Passage(
+                    passage["passage_id"], passage["text"],
+                    passage.get("kind", "unspecified"),
+                )
                 for passage in item["passages"]
             ),
         )
@@ -149,8 +164,8 @@ def _reporting_period(text: str) -> str | None:
     return None
 
 
-def _mentioned_dates(text: str) -> set[tuple[int, int, int | None]]:
-    dates: set[tuple[int, int, int | None]] = set()
+def _mentioned_dates(text: str) -> set[tuple[int, int | None, int | None]]:
+    dates: set[tuple[int, int | None, int | None]] = set()
     for match in _DATE_PATTERN.finditer(text):
         if match.group("iso"):
             year, month, day = map(int, match.group("iso").split("-"))
@@ -162,18 +177,27 @@ def _mentioned_dates(text: str) -> set[tuple[int, int, int | None]]:
             dates.add((year, month, day))
             if match.group("first"):
                 dates.add((year, _MONTHS.index(match.group("first").casefold()) + 1, None))
+    remaining = _DATE_PATTERN.sub(" ", text)
+    dates.update(
+        (int(match.group(1)), None, None)
+        for match in _YEAR_PATTERN.finditer(remaining)
+    )
+    dates.update(
+        (2000 + int(match.group(1)), None, None)
+        for match in _SHORT_FY_PATTERN.finditer(remaining)
+    )
     return dates
 
 
 def _matching_dates(
-    requested: set[tuple[int, int, int | None]], text: str
-) -> set[tuple[int, int, int | None]]:
+    requested: set[tuple[int, int | None, int | None]], text: str
+) -> set[tuple[int, int | None, int | None]]:
     available = _mentioned_dates(text)
     return {
         (year, month, day)
         for year, month, day in requested
         if any(
-            year == found_year and month == found_month
+            year == found_year and (month is None or month == found_month)
             and (day is None or day == found_day)
             for found_year, found_month, found_day in available
         )
@@ -186,7 +210,14 @@ def retrieve(
     question_terms = content_terms(question)
     requested_period = _reporting_period(question)
     requested_dates = _mentioned_dates(question)
-    ranked: list[tuple[int, RetrievedPassage, set[tuple[int, int, int | None]]]] = []
+    requested_entities = {
+        match.group(1).casefold() for match in _POSSESSIVE_PATTERN.finditer(question)
+    }
+    requested_entities.update(
+        (match.group("object") or match.group("subject")).casefold()
+        for match in _COMPANY_PATTERN.finditer(question)
+    )
+    ranked: list[tuple[int, RetrievedPassage, set[tuple[int, int | None, int | None]]]] = []
     for document in documents:
         publication_month = date.fromisoformat(document.publication_date).strftime("%B")
         for passage in document.passages:
@@ -203,6 +234,8 @@ def retrieve(
                 f"{document.source_id} {document.title} "
                 f"{document.publication_date} {publication_month} {passage.text}"
             )
+            if not requested_entities <= content_terms(searchable_text):
+                continue
             overlap = len(question_terms & content_terms(searchable_text))
             if overlap >= MINIMUM_TERM_OVERLAP:
                 ranked.append(

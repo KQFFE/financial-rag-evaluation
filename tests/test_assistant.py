@@ -55,6 +55,16 @@ def test_quarterly_question_does_not_use_annual_revenue() -> None:
         "What was Microsoft's revenue for the fiscal year ended June 30, 2023?",
         "What was Microsoft's revenue for the fiscal year ended July 30, 2024?",
         "What target range did the FOMC set on 2024-13-40?",
+        "What was Nvidia's annual revenue in 2024?",
+        "What was Nvidia’s annual revenue in 2024?",
+        "What was Nvidia annual revenue in 2024?",
+        "What is annual revenue of Nvidia?",
+        "What is annual revenue of Nvidia in 2024?",
+        "What did Nvidia report as annual revenue?",
+        "What was Microsoft's revenue in fiscal year 2023?",
+        "What was Microsoft's annual revenue in FY2023?",
+        "What was Microsoft's annual revenue in FY23?",
+        "What target range did the FOMC set in 2025?",
         "What target ranges did the FOMC set on September 18, 2024 and "
         "November 7, 2025?",
     ],
@@ -89,6 +99,14 @@ def test_unsupported_requested_dates_abstain_without_calling_model(question) -> 
         ),
         (
             "What was Microsoft's revenue for the fiscal year ended June 30, 2024?",
+            {"microsoft-2024-10k#revenue-fy2024"},
+        ),
+        (
+            "What was Microsoft's annual revenue in FY2024?",
+            {"microsoft-2024-10k#revenue-fy2024"},
+        ),
+        (
+            "What was Microsoft's annual revenue in FY24?",
             {"microsoft-2024-10k#revenue-fy2024"},
         ),
     ],
