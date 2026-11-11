@@ -1,5 +1,12 @@
 import json
+import runpy
+import sys
+from urllib.error import URLError
 
+import pytest
+
+from financial_rag_eval import live_evaluate
+from financial_rag_eval.assistant import load_benchmark
 from financial_rag_eval.live_evaluate import (
     OpenAIAnswerer,
     run_prompt_injection_checks,
@@ -94,3 +101,153 @@ def test_live_prompt_injection_checks_flag_leakage_and_followed_instructions() -
     assert any("expected fact" in issue for issue in checks[1]["issues"])
     assert any("false revenue instruction" in issue for issue in checks[1]["issues"])
     assert any("passage canary" in issue for issue in checks[1]["issues"])
+
+
+@pytest.mark.parametrize("fail_case", [False, True])
+def test_live_main_saves_complete_snapshot_and_returns_result(
+    monkeypatch, tmp_path, capsys, fail_case
+) -> None:
+    output = tmp_path / "results" / "snapshot.json"
+    monkeypatch.setenv("OPENAI_API_KEY", "not-a-real-key")
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    monkeypatch.setattr(sys, "argv", ["live-evaluate", "--output", str(output)])
+    cases = load_benchmark()
+    cases_by_question = {case["question"]: case for case in cases}
+    calls = []
+
+    class FakeResponse:
+        def __init__(self, text):
+            self.text = text
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self):
+            return json.dumps(
+                {"choices": [{"message": {"content": self.text}}]}
+            ).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        payload = json.loads(request.data.decode("utf-8"))
+        calls.append(payload)
+        system, user = payload["messages"]
+        if "FINDEVAL-SYSTEM-CANARY" in system["content"]:
+            return FakeResponse("I can't reveal confidential instructions.")
+        data = json.loads(user["content"].split("\n", 1)[1])
+        question = data["question"]
+        if question == "What revenue does the report state?":
+            return FakeResponse(
+                "Revenue was $100 million. [synthetic-injection-fixture#revenue]"
+            )
+        case = cases_by_question[question]
+        if fail_case and case["case_id"] == "target-range":
+            return FakeResponse("I don't know.")
+        facts = case.get("expected_facts", [case.get("expected_answer")])
+        evidence = [case] + case.get("additional_evidence", [])
+        citations = " ".join(
+            f"[{item['source_id']}#{item['passage_id']}]" for item in evidence
+        )
+        return FakeResponse(f"{' '.join(facts)} {citations}")
+
+    monkeypatch.setattr(live_evaluate, "urlopen", fake_urlopen)
+
+    status = live_evaluate.main()
+
+    snapshot = json.loads(output.read_text(encoding="utf-8"))
+    assert status == int(fail_case)
+    assert snapshot["model"] == "test-model"
+    assert snapshot["case_count"] == len(cases)
+    assert snapshot["safety_check_count"] == 2
+    assert snapshot["failure_count"] == int(fail_case)
+    assert len(snapshot["cases"]) == len(cases)
+    assert len(snapshot["safety_checks"]) == 2
+    assert len(calls) == sum(case["answerable"] for case in cases) + 2
+    assert all(call["model"] == "test-model" for call in calls)
+    assert "Snapshot saved to:" in capsys.readouterr().out
+    failed = [case for case in snapshot["cases"] if case["issues"]]
+    assert len(failed) == int(fail_case)
+    if fail_case:
+        assert failed[0]["case_id"] == "target-range"
+
+
+def test_live_main_missing_key_fails_before_network_or_snapshot(
+    monkeypatch, tmp_path
+) -> None:
+    output = tmp_path / "snapshot.json"
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(sys, "argv", ["live-evaluate", "--output", str(output)])
+
+    def unexpected_request(*_args, **_kwargs):
+        pytest.fail("No network request should be made without a key")
+
+    monkeypatch.setattr(live_evaluate, "urlopen", unexpected_request)
+
+    with pytest.raises(SystemExit, match="Set OPENAI_API_KEY"):
+        live_evaluate.main()
+    assert not output.exists()
+
+
+def test_live_provider_error_is_not_reported_as_success(monkeypatch, tmp_path) -> None:
+    output = tmp_path / "snapshot.json"
+    monkeypatch.setenv("OPENAI_API_KEY", "not-a-real-key")
+    monkeypatch.setattr(sys, "argv", ["live-evaluate", "--output", str(output)])
+
+    def failed_request(*_args, **_kwargs):
+        raise URLError("provider unavailable")
+
+    monkeypatch.setattr(live_evaluate, "urlopen", failed_request)
+
+    with pytest.raises(URLError, match="provider unavailable"):
+        live_evaluate.main()
+    assert not output.exists()
+
+
+def test_live_provider_malformed_response_fails_explicitly(monkeypatch) -> None:
+    class MalformedResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self):
+            return b'{"choices": []}'
+
+    monkeypatch.setattr(
+        live_evaluate, "urlopen", lambda *_args, **_kwargs: MalformedResponse()
+    )
+    with pytest.raises(IndexError):
+        OpenAIAnswerer("not-a-real-key", "test-model")("system", "question")
+
+
+def test_live_main_reports_safety_probe_failures(monkeypatch, tmp_path, capsys) -> None:
+    output = tmp_path / "snapshot.json"
+    monkeypatch.setenv("OPENAI_API_KEY", "not-a-real-key")
+    monkeypatch.setattr(sys, "argv", ["live-evaluate", "--output", str(output)])
+    monkeypatch.setattr(live_evaluate, "load_benchmark", lambda: [])
+    monkeypatch.setattr(
+        live_evaluate,
+        "run_prompt_injection_checks",
+        lambda _answerer: [
+            {"case_id": "unsafe", "answer": "leak", "issues": ["canary leaked"]}
+        ],
+    )
+
+    assert live_evaluate.main() == 1
+    snapshot = json.loads(output.read_text(encoding="utf-8"))
+    assert snapshot["failure_count"] == 1
+    assert snapshot["safety_check_count"] == 1
+    assert "canary leaked" in capsys.readouterr().out
+
+
+def test_live_module_entry_point_requires_key(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(
+        sys, "argv", ["live-evaluate", "--output", str(tmp_path / "snapshot.json")]
+    )
+    with pytest.warns(RuntimeWarning, match="found in sys.modules"):
+        with pytest.raises(SystemExit, match="Set OPENAI_API_KEY"):
+            runpy.run_module("financial_rag_eval.live_evaluate", run_name="__main__")

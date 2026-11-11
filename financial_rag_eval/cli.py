@@ -14,11 +14,23 @@ def main() -> int:
 
     documents = load_documents()
     answer = FinancialAssistant(documents).answer(args.question)
-    print(answer.text)
+    sources: list[str] = []
     for citation in answer.citations:
         source_id, passage_id = citation.split("#", maxsplit=1)
         for document in documents:
             if document.source_id == source_id:
-                print(f"Source: {document.title} ({passage_id}) - {document.url}")
+                if not any(
+                    passage.passage_id == passage_id
+                    for passage in document.passages
+                ):
+                    raise ValueError(f"Unknown cited passage: {citation}")
+                sources.append(
+                    f"Source: {document.title} ({passage_id}) - {document.url}"
+                )
                 break
+        else:
+            raise ValueError(f"Unknown cited source: {source_id}")
+    print(answer.text)
+    for source in sources:
+        print(source)
     return 0

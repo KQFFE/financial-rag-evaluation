@@ -49,6 +49,16 @@ For routine offline checks:
 python -m pytest
 ```
 
+For the same statement and branch coverage report used in CI:
+
+```powershell
+python -m coverage run -m pytest
+python -m coverage report -m --fail-under=100
+```
+
+The test dependencies are pytest 8 or 9 and coverage.py 7.6 or newer (below
+version 8), as specified in the project configuration.
+
 The tests use fixed sample responses instead of calling an AI model, so they
 run offline without an API key. They check that each benchmark question gets
 the expected answer or abstains, and that answers cite passages that support
@@ -56,8 +66,16 @@ their claims. The benchmark is also run through the actual no-model retrieval
 and response path. Other tests check unsupported questions, made-up claims,
 reporting-period mismatches, date-specific document retrieval, attempts to
 reveal hidden instructions, malicious instructions inside source documents,
-and saving live-evaluation results. GitHub Actions runs these tests on every
-push and pull request.
+and saving live-evaluation results. They also exercise the CLI and the full
+live-evaluation command with a simulated provider, including failure paths;
+they do not call the network. GitHub Actions runs these tests on every push
+and pull request and requires 100% combined statement and branch coverage
+of the application package. Coverage measures executed code, not whether
+every possible input, claim, or attack has been tested.
+
+The latest local run on Python 3.14.7 passed 37 tests with 100% combined
+statement and branch coverage. This is an offline code-coverage result, not a
+measure of real-model answer quality.
 
 The grounding checker is deliberately lightweight: it checks expected answer
 text, citations, retrieved source passages, and overlapping content terms. It

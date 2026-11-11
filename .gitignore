@@ -1,6 +1,8 @@
 .venv/
 __pycache__/
 .pytest_cache/
+.coverage
+.coverage.*
 *.py[cod]
 *.egg-info/
 .env
