@@ -53,6 +53,14 @@ _COMPANY_PATTERN = re.compile(
     r"(?i:\b(?:was|did)\s+)(?P<subject>[A-Z][A-Za-z0-9-]+)"
     r"(?=\s+(?i:(?:annual|quarterly|revenue|income|report))\b)"
 )
+_UNSUPPORTED_SCOPE_PATTERN = re.compile(
+    r"\b(?:(?:last|previous|prior|next|current|this)\s+(?:fiscal\s+)?"
+    r"(?:year|quarter)|(?:years?|quarters?)\s+ago|"
+    r"euros?|eur|pounds?|sterling|gbp|yen|jpy|yuan|rmb|cny|"
+    r"ecb|boe|boj|european central bank|bank of (?:england|japan|canada)|"
+    r"people's bank of china)\b",
+    re.IGNORECASE,
+)
 _INSTRUCTION_EXTRACTION_PATTERNS = (
     re.compile(
         r"\b(?:reveal|show|print|repeat|disclose|quote)\b.{0,80}"
@@ -207,6 +215,8 @@ def _matching_dates(
 def retrieve(
     question: str, documents: list[Document], limit: int = 3
 ) -> tuple[RetrievedPassage, ...]:
+    if _UNSUPPORTED_SCOPE_PATTERN.search(question):
+        return ()
     question_terms = content_terms(question)
     requested_period = _reporting_period(question)
     requested_dates = _mentioned_dates(question)
