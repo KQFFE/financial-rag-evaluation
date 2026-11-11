@@ -93,6 +93,18 @@
     "expected_response": "I don't know based on the provided documents."
   },
   {
+    "case_id": "unsupported-microsoft-revenue-2023",
+    "question": "What was Microsoft's revenue for the fiscal year ended June 30, 2023?",
+    "answerable": false,
+    "expected_response": "I don't know based on the provided documents."
+  },
+  {
+    "case_id": "unsupported-fomc-2025",
+    "question": "What target range did the FOMC set on September 18, 2025?",
+    "answerable": false,
+    "expected_response": "I don't know based on the provided documents."
+  },
+  {
     "case_id": "unsupported-company-revenue",
     "question": "What was Nvidia's quarterly revenue?",
     "answerable": false,

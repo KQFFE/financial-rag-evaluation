@@ -17,15 +17,24 @@ from more than one document, but the output is an extract rather than a
 generated summary and may include extra passages. If a question explicitly
 asks for quarterly or annual results, passages with a different reporting
 period are excluded; if no matching passage exists, the assistant abstains.
+For explicitly stated dates such as `September 18, 2024`, `November 2024`,
+or `2024-09-18`, retrieval requires matching dates in the selected evidence.
+When an annual period is requested, the date must appear in the passage
+rather than merely being the document's publication date. If any recognized
+requested date is missing from the selected passages, it abstains without
+calling the model. This is a simple date filter, not an understanding of the
+question: other date formats, standalone years, and fiscal-year shorthand may
+not be recognized, and the filter can reject questions whose dates provide
+context rather than specifying the evidence sought.
 
 The current benchmark includes the Federal Reserve's September 18 and
 November 7, 2024 FOMC statements and Microsoft's FY2024 Form 10-K. Cases cover
 rate decisions, a cross-statement comparison, labor-market language,
 Microsoft's revenue and net income with reporting period and units, an
-unsupported company-revenue question, and requests to reveal hidden
-instructions. Source records include URLs, publication dates, and access
-dates. The included excerpts are intentionally short; consult the source
-terms before redistributing source material.
+unsupported company-revenue and date-specific questions, and requests to
+reveal hidden instructions. Source records include URLs, publication dates,
+and access dates. The included excerpts are intentionally short; consult the
+source terms before redistributing source material.
 
 ## How to run
 
@@ -75,7 +84,7 @@ and pull request and requires 100% combined statement and branch coverage
 of the application package. Coverage measures executed code, not whether
 every possible input, claim, or attack has been tested.
 
-The latest local run on Python 3.14.7 passed 70 tests with 100% combined
+The latest local run on Python 3.14.7 passed 81 tests with 100% combined
 statement and branch coverage. This is an offline code-coverage result, not a
 measure of real-model answer quality.
 

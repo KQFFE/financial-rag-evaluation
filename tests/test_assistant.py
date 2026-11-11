@@ -1,5 +1,7 @@
 from datetime import date
 
+import pytest
+
 from financial_rag_eval.assistant import (
     ABSTENTION_MESSAGE,
     Answer,
@@ -42,6 +44,64 @@ def test_quarterly_question_does_not_use_annual_revenue() -> None:
     assert answer.abstained
     assert answer.text == ABSTENTION_MESSAGE
     assert answerer.messages == []
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "What target range did the FOMC set on September 18, 2025?",
+        "What target range did the FOMC set on 2024-09-19?",
+        "What target range did the FOMC set in December 2024?",
+        "What was Microsoft's revenue for the fiscal year ended June 30, 2023?",
+        "What was Microsoft's revenue for the fiscal year ended July 30, 2024?",
+        "What target range did the FOMC set on 2024-13-40?",
+        "What target ranges did the FOMC set on September 18, 2024 and "
+        "November 7, 2025?",
+    ],
+)
+def test_unsupported_requested_dates_abstain_without_calling_model(question) -> None:
+    answerer = MockAnswerer("Invented answer.")
+
+    answer = FinancialAssistant(load_documents(), answerer).answer(question)
+
+    assert answer.text == ABSTENTION_MESSAGE
+    assert answer.abstained
+    assert answerer.messages == []
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_citations"),
+    [
+        (
+            "What target range did the FOMC set on September 18, 2024?",
+            {"fomc-statement-2024-09-18#target-range"},
+        ),
+        (
+            "What target range did the FOMC set in November 2024?",
+            {"fomc-statement-2024-11-07#target-range"},
+        ),
+        (
+            "What target ranges did the FOMC set on 2024-09-18 and 2024-11-07?",
+            {
+                "fomc-statement-2024-09-18#target-range",
+                "fomc-statement-2024-11-07#target-range",
+            },
+        ),
+        (
+            "What was Microsoft's revenue for the fiscal year ended June 30, 2024?",
+            {"microsoft-2024-10k#revenue-fy2024"},
+        ),
+    ],
+)
+def test_supported_requested_dates_return_matching_evidence(
+    question, expected_citations
+) -> None:
+    answer = FinancialAssistant(load_documents()).answer(question)
+
+    assert not answer.abstained
+    assert expected_citations <= set(answer.citations)
+    if "November 2024" in question:
+        assert all("2024-11-07" in citation for citation in answer.citations)
 
 
 def test_supported_answer_matches_benchmark_and_cites_evidence() -> None:

@@ -32,6 +32,18 @@ _ANNUAL_PERIOD_PATTERN = re.compile(
     r"\b(?:annual(?:ly)?|fiscal year|year ended|fy\s*\d{2,4})\b",
     re.IGNORECASE,
 )
+_MONTHS = (
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+)
+_MONTH_PATTERN = "|".join(_MONTHS)
+_DATE_PATTERN = re.compile(
+    rf"\b(?:(?P<iso>\d{{4}}-\d{{2}}-\d{{2}})|"
+    rf"(?:(?P<first>{_MONTH_PATTERN})\s+and\s+)?"
+    rf"(?P<month>{_MONTH_PATTERN})\s+"
+    rf"(?:(?P<day>\d{{1,2}}),?\s+)?(?P<year>\d{{4}}))\b",
+    re.IGNORECASE,
+)
 _INSTRUCTION_EXTRACTION_PATTERNS = (
     re.compile(
         r"\b(?:reveal|show|print|repeat|disclose|quote)\b.{0,80}"
@@ -137,17 +149,55 @@ def _reporting_period(text: str) -> str | None:
     return None
 
 
+def _mentioned_dates(text: str) -> set[tuple[int, int, int | None]]:
+    dates: set[tuple[int, int, int | None]] = set()
+    for match in _DATE_PATTERN.finditer(text):
+        if match.group("iso"):
+            year, month, day = map(int, match.group("iso").split("-"))
+            dates.add((year, month, day))
+        else:
+            year = int(match.group("year"))
+            month = _MONTHS.index(match.group("month").casefold()) + 1
+            day = int(match.group("day")) if match.group("day") else None
+            dates.add((year, month, day))
+            if match.group("first"):
+                dates.add((year, _MONTHS.index(match.group("first").casefold()) + 1, None))
+    return dates
+
+
+def _matching_dates(
+    requested: set[tuple[int, int, int | None]], text: str
+) -> set[tuple[int, int, int | None]]:
+    available = _mentioned_dates(text)
+    return {
+        (year, month, day)
+        for year, month, day in requested
+        if any(
+            year == found_year and month == found_month
+            and (day is None or day == found_day)
+            for found_year, found_month, found_day in available
+        )
+    }
+
+
 def retrieve(
     question: str, documents: list[Document], limit: int = 3
 ) -> tuple[RetrievedPassage, ...]:
     question_terms = content_terms(question)
     requested_period = _reporting_period(question)
-    ranked: list[tuple[int, RetrievedPassage]] = []
+    requested_dates = _mentioned_dates(question)
+    ranked: list[tuple[int, RetrievedPassage, set[tuple[int, int, int | None]]]] = []
     for document in documents:
         publication_month = date.fromisoformat(document.publication_date).strftime("%B")
         for passage in document.passages:
             passage_period = _reporting_period(passage.text)
             if requested_period and passage_period != requested_period:
+                continue
+            date_text = passage.text
+            if requested_period != "annual":
+                date_text += " " + document.publication_date
+            matched_dates = _matching_dates(requested_dates, date_text)
+            if requested_dates and not matched_dates:
                 continue
             searchable_text = (
                 f"{document.source_id} {document.title} "
@@ -165,10 +215,15 @@ def retrieve(
                             publication_date=document.publication_date,
                             passage=passage,
                         ),
+                        matched_dates,
                     )
                 )
     ranked.sort(key=lambda result: result[0], reverse=True)
-    return tuple(result for _, result in ranked[:limit])
+    selected = ranked[:limit]
+    covered_dates = set().union(*(matched for _, _, matched in selected))
+    if not requested_dates <= covered_dates:
+        return ()
+    return tuple(result for _, result, _ in selected)
 
 
 def _is_instruction_extraction_attempt(question: str) -> bool:
