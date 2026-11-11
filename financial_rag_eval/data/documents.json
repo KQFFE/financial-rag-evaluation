@@ -42,5 +42,23 @@
         "text": "The Committee seeks to achieve maximum employment and inflation at the rate of 2 percent over the longer run."
       }
     ]
+  },
+  {
+    "source_id": "microsoft-2024-10k",
+    "title": "Microsoft Corporation 2024 Form 10-K",
+    "url": "https://www.sec.gov/Archives/edgar/data/789019/000095017024087843/msft-20240630.htm",
+    "publication_date": "2024-07-30",
+    "access_date": "2026-11-11",
+    "reuse_note": "Short factual excerpts from the SEC-filed annual report; consult the filing for the complete context.",
+    "passages": [
+      {
+        "passage_id": "revenue-fy2024",
+        "text": "Microsoft reported revenue of $245,122 million for the fiscal year ended June 30, 2024."
+      },
+      {
+        "passage_id": "net-income-fy2024",
+        "text": "Microsoft reported net income of $88,136 million for the fiscal year ended June 30, 2024."
+      }
+    ]
   }
 ]

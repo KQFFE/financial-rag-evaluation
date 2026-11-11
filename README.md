@@ -5,10 +5,12 @@ documents. It is not a full chatbot product, financial advice, or a compliance
 certification.
 
 The benchmark uses short passages from the Federal Reserve's September 18 and
-November 7, 2024 FOMC statements, including a question that compares evidence
-across both documents. Each source record includes its URL, publication date,
-and access date. The passages are intentionally short; consult the source terms
-before redistributing source material.
+November 7, 2024 FOMC statements, plus Microsoft's FY2024 Form 10-K. Cases
+include a comparison across the FOMC statements, company financial facts with
+their reporting period and units, and unsupported questions. Each source
+record includes its URL, publication date, and access date. The passages are
+intentionally short; consult the source terms before redistributing source
+material.
 
 ## Setup
 
@@ -50,10 +52,12 @@ Set the key only in the environment; never put it in source control:
 
 ```powershell
 $env:OPENAI_API_KEY = "..."
-python -m financial_rag_eval.live_evaluate
+python -m financial_rag_eval.live_evaluate --output evaluations/fy2024.json
 ```
 
 Set `OPENAI_MODEL` to select another compatible model. Live results can vary
-and may incur API costs; the offline suite remains the CI gate. The benchmark
-is a small hand-reviewed demo and passing it does not establish general model
-safety or financial accuracy.
+and may incur API costs. The command records the model, timestamp, answers,
+citations, and grading issues in the requested JSON snapshot; it is not part of
+CI. The offline suite remains the CI gate. The benchmark is a small hand-reviewed
+demo and passing it does not establish general model safety or financial
+accuracy.

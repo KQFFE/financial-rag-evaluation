@@ -56,6 +56,22 @@ def test_date_specific_question_selects_matching_statement() -> None:
     )
 
 
+def test_sec_10k_questions_return_dated_facts_with_citations() -> None:
+    cases = {
+        case["case_id"]: case
+        for case in load_benchmark()
+    }
+    for case_id in ("microsoft-revenue-fy2024", "microsoft-net-income-fy2024"):
+        case = cases[case_id]
+        citation = f"[{case['source_id']}#{case['passage_id']}]"
+        answerer = MockAnswerer(f"{case['expected_answer']} {citation}")
+        answer = FinancialAssistant(load_documents(), answerer).answer(
+            case["question"]
+        )
+
+        assert grade_case(case, answer) == []
+
+
 def test_every_benchmark_case_has_a_valid_grounded_outcome() -> None:
     documents = load_documents()
     document_ids = [document.source_id for document in documents]

@@ -54,6 +54,22 @@
     ]
   },
   {
+    "case_id": "microsoft-revenue-fy2024",
+    "question": "How much revenue did Microsoft report for the fiscal year ended June 30, 2024, in USD millions?",
+    "answerable": true,
+    "expected_answer": "245,122 million",
+    "source_id": "microsoft-2024-10k",
+    "passage_id": "revenue-fy2024"
+  },
+  {
+    "case_id": "microsoft-net-income-fy2024",
+    "question": "What was Microsoft's net income for the fiscal year ended June 30, 2024, in USD millions?",
+    "answerable": true,
+    "expected_answer": "88,136 million",
+    "source_id": "microsoft-2024-10k",
+    "passage_id": "net-income-fy2024"
+  },
+  {
     "case_id": "unsupported-company-revenue",
     "question": "What was Nvidia's quarterly revenue?",
     "answerable": false,
