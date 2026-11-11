@@ -46,21 +46,68 @@ def test_supported_answer_matches_benchmark_and_cites_evidence() -> None:
     assert grade_case(case, answer) == []
 
 
-def test_all_supported_benchmark_cases_have_grounded_evidence() -> None:
-    for case in load_benchmark():
-        if not case["answerable"]:
-            continue
-        citation = f"[{case['source_id']}#{case['passage_id']}]"
-        answerer = MockAnswerer(f"{case['expected_answer']}. {citation}")
-        assistant = FinancialAssistant(load_documents(), answerer)
+def test_date_specific_question_selects_matching_statement() -> None:
+    answer = FinancialAssistant(load_documents()).answer(
+        "What target range did the FOMC set on November 7, 2024?"
+    )
 
-        answer = assistant.answer(case["question"])
+    assert answer.citations == (
+        "fomc-statement-2024-11-07#target-range",
+    )
+
+
+def test_every_benchmark_case_has_a_valid_grounded_outcome() -> None:
+    documents = load_documents()
+    document_ids = [document.source_id for document in documents]
+    assert len(document_ids) == len(set(document_ids))
+    assert all(
+        document.url and document.publication_date and document.access_date
+        for document in documents
+    )
+    document_passages = {
+        (document.source_id, passage.passage_id)
+        for document in documents
+        for passage in document.passages
+    }
+    cases = load_benchmark()
+    case_ids = [case["case_id"] for case in cases]
+    assert len(case_ids) == len(set(case_ids))
+
+    for case in cases:
+        evidence = [
+            {
+                "source_id": case.get("source_id"),
+                "passage_id": case.get("passage_id"),
+            },
+            *case.get("additional_evidence", []),
+        ]
+        if case["answerable"]:
+            assert "expected_answer" in case, case["case_id"]
+            assert all(
+                (item["source_id"], item["passage_id"]) in document_passages
+                for item in evidence
+            ), case["case_id"]
+            citations = " ".join(
+                f"[{item['source_id']}#{item['passage_id']}]" for item in evidence
+            )
+            answerer = MockAnswerer(f"{case['expected_answer']} {citations}")
+        else:
+            assert "expected_response" in case, case["case_id"]
+            answerer = MockAnswerer("This must not be used.")
+
+        answer = FinancialAssistant(documents, answerer).answer(case["question"])
 
         assert grade_case(case, answer) == [], case["case_id"]
+        if not case["answerable"]:
+            assert answerer.prompts == [], case["case_id"]
 
 
 def test_benchmark_rejects_unsupported_claim_with_fabricated_citation() -> None:
-    case = load_benchmark()[3]
+    case = next(
+        case
+        for case in load_benchmark()
+        if case["case_id"] == "unsupported-company-revenue"
+    )
     answer = Answer(
         text="Nvidia reported $10 billion in revenue. [made-up#revenue]",
         citations=("made-up#revenue",),
@@ -72,7 +119,11 @@ def test_benchmark_rejects_unsupported_claim_with_fabricated_citation() -> None:
 
 
 def test_abstention_with_an_appended_claim_fails_benchmark() -> None:
-    case = load_benchmark()[3]
+    case = next(
+        case
+        for case in load_benchmark()
+        if case["case_id"] == "unsupported-company-revenue"
+    )
     answer = Answer(
         text=(
             "I don't know based on the provided documents. "

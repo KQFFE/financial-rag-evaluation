@@ -20,5 +20,27 @@
         "text": "The Committee seeks to achieve maximum employment and inflation at the rate of 2 percent over the longer run."
       }
     ]
+  },
+  {
+    "source_id": "fomc-statement-2024-11-07",
+    "title": "Federal Reserve issues FOMC statement",
+    "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20241107a.htm",
+    "publication_date": "2024-11-07",
+    "access_date": "2026-11-11",
+    "reuse_note": "Short factual excerpts only; consult the source terms before redistributing source material.",
+    "passages": [
+      {
+        "passage_id": "target-range",
+        "text": "In support of its goals, the Committee decided to lower the target range for the federal funds rate by 1/4 percentage point to 4-1/2 to 4-3/4 percent."
+      },
+      {
+        "passage_id": "labor-market",
+        "text": "Since earlier in the year, labor market conditions have generally eased, and the unemployment rate has moved up but remains low."
+      },
+      {
+        "passage_id": "inflation-objective",
+        "text": "The Committee seeks to achieve maximum employment and inflation at the rate of 2 percent over the longer run."
+      }
+    ]
   }
 ]

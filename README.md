@@ -4,8 +4,9 @@ FinDocEval is a small evaluation demo for answers grounded in public financial
 documents. It is not a full chatbot product, financial advice, or a compliance
 certification.
 
-The first benchmark uses short passages from the Federal Reserve's September
-18, 2024 FOMC statement. Each source record includes its URL, publication date,
+The benchmark uses short passages from the Federal Reserve's September 18 and
+November 7, 2024 FOMC statements, including a question that compares evidence
+across both documents. Each source record includes its URL, publication date,
 and access date. The passages are intentionally short; consult the source terms
 before redistributing source material.
 
@@ -26,9 +27,10 @@ python -m pytest
 ```
 
 These deterministic tests use stubbed answerers and make no model or network
-calls. They cover retrieval, abstention when evidence is missing, expected
-facts and citations, unsupported claims, user requests for hidden instructions,
-and malicious instructions embedded in retrieved text. The demo retrieval is
+calls. They run every benchmark case against a mocked answerer and check its
+expected fact or abstention, cited source passages, and grounding. Additional
+cases cover unsupported claims, user requests for hidden instructions, and
+malicious instructions embedded in retrieved text. The demo retrieval is
 simple keyword overlap, not a semantic search system.
 
 ## Try the assistant

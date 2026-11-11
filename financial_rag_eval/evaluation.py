@@ -25,10 +25,17 @@ def grade_case(case: Mapping[str, object], answer: Answer) -> list[str]:
     if expected_answer.casefold() not in answer.text.casefold():
         issues.append(f"Answer does not include expected fact: {expected_answer!r}.")
 
-    source_id = str(case["source_id"])
-    passage_id = str(case["passage_id"])
-    citation = f"{source_id}#{passage_id}"
-    if citation not in answer.citations:
+    expected_evidence = [
+        {
+            "source_id": str(case["source_id"]),
+            "passage_id": str(case["passage_id"]),
+        },
+        *case.get("additional_evidence", []),
+    ]
+    expected_citations = {
+        f"{item['source_id']}#{item['passage_id']}" for item in expected_evidence
+    }
+    for citation in expected_citations - set(answer.citations):
         issues.append(f"Answer is missing the expected citation [{citation}].")
 
     cited_passages = [
@@ -36,12 +43,27 @@ def grade_case(case: Mapping[str, object], answer: Answer) -> list[str]:
         for item in answer.retrieved_passages
         if f"{item.source_id}#{item.passage.passage_id}" in answer.citations
     ]
-    if not any(item.source_id == source_id and item.passage.passage_id == passage_id
-               for item in cited_passages):
-        issues.append("Expected cited passage was not retrieved.")
-    elif content_terms(re.sub(r"\[[^\]]+\]", "", answer.text)) - set().union(
+    retrieved_citations = {
+        f"{item.source_id}#{item.passage.passage_id}" for item in cited_passages
+    }
+    for citation in expected_citations - retrieved_citations:
+        issues.append(f"Expected cited passage [{citation}] was not retrieved.")
+
+    unexpected_citations = set(answer.citations) - retrieved_citations
+    if unexpected_citations:
+        issues.append(
+            "Answer cites passages that were not retrieved: "
+            + ", ".join(sorted(unexpected_citations))
+            + "."
+        )
+
+    if cited_passages and content_terms(
+        re.sub(r"\[[^\]]+\]", "", answer.text)
+    ) - set().union(
         *(
-            content_terms(item.passage.text + " " + item.title)
+            content_terms(
+                item.passage.text + " " + item.title + " " + item.publication_date
+            )
             for item in cited_passages
         )
     ):

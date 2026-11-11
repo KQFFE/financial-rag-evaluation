@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -125,10 +126,11 @@ def retrieve(
     question_terms = content_terms(question)
     ranked: list[tuple[int, RetrievedPassage]] = []
     for document in documents:
+        publication_month = date.fromisoformat(document.publication_date).strftime("%B")
         for passage in document.passages:
             searchable_text = (
                 f"{document.source_id} {document.title} "
-                f"{document.publication_date} {passage.text}"
+                f"{document.publication_date} {publication_month} {passage.text}"
             )
             overlap = len(question_terms & content_terms(searchable_text))
             if overlap >= MINIMUM_TERM_OVERLAP:
