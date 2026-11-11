@@ -137,7 +137,10 @@ def test_every_benchmark_case_has_a_valid_grounded_outcome() -> None:
             *case.get("additional_evidence", []),
         ]
         if case["answerable"]:
-            assert "expected_answer" in case, case["case_id"]
+            expected_facts = case.get(
+                "expected_facts", [case.get("expected_answer")]
+            )
+            assert all(expected_facts), case["case_id"]
             assert all(
                 (item["source_id"], item["passage_id"]) in document_passages
                 for item in evidence
@@ -145,7 +148,7 @@ def test_every_benchmark_case_has_a_valid_grounded_outcome() -> None:
             citations = " ".join(
                 f"[{item['source_id']}#{item['passage_id']}]" for item in evidence
             )
-            answerer = MockAnswerer(f"{case['expected_answer']} {citations}")
+            answerer = MockAnswerer(f"{' '.join(expected_facts)} {citations}")
         else:
             assert "expected_response" in case, case["case_id"]
             answerer = MockAnswerer("This must not be used.")
@@ -155,6 +158,15 @@ def test_every_benchmark_case_has_a_valid_grounded_outcome() -> None:
         assert grade_case(case, answer) == [], case["case_id"]
         if not case["answerable"]:
             assert answerer.prompts == [], case["case_id"]
+
+
+def test_real_retrieval_answers_every_benchmark_case_from_its_evidence() -> None:
+    assistant = FinancialAssistant(load_documents())
+
+    for case in load_benchmark():
+        answer = assistant.answer(case["question"])
+
+        assert grade_case(case, answer) == [], case["case_id"]
 
 
 def test_benchmark_rejects_unsupported_claim_with_fabricated_citation() -> None:

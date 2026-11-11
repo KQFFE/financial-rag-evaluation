@@ -52,7 +52,8 @@ python -m pytest
 The tests use fixed sample responses instead of calling an AI model, so they
 run offline without an API key. They check that each benchmark question gets
 the expected answer or abstains, and that answers cite passages that support
-their claims. Other tests check unsupported questions, made-up claims,
+their claims. The benchmark is also run through the actual no-model retrieval
+and response path. Other tests check unsupported questions, made-up claims,
 reporting-period mismatches, date-specific document retrieval, attempts to
 reveal hidden instructions, malicious instructions inside source documents,
 and saving live-evaluation results. GitHub Actions runs these tests on every

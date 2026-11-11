@@ -21,9 +21,11 @@ def grade_case(case: Mapping[str, object], answer: Answer) -> list[str]:
     if answer.abstained:
         return ["Expected a supported answer, but the assistant abstained."]
 
-    expected_answer = str(case["expected_answer"])
-    if expected_answer.casefold() not in answer.text.casefold():
-        issues.append(f"Answer does not include expected fact: {expected_answer!r}.")
+    expected_facts = case.get("expected_facts", [case.get("expected_answer")])
+    for expected_fact in expected_facts:
+        fact = str(expected_fact)
+        if fact.casefold() not in answer.text.casefold():
+            issues.append(f"Answer does not include expected fact: {fact!r}.")
 
     expected_evidence = [
         {

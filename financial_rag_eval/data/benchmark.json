@@ -43,7 +43,10 @@
     "case_id": "target-range-comparison",
     "question": "What target ranges did the FOMC set in September and November 2024?",
     "answerable": true,
-    "expected_answer": "2024-09-18: 4-3/4 to 5 percent; 2024-11-07: 4-1/2 to 4-3/4 percent",
+    "expected_facts": [
+      "4-3/4 to 5 percent",
+      "4-1/2 to 4-3/4 percent"
+    ],
     "source_id": "fomc-statement-2024-09-18",
     "passage_id": "target-range",
     "additional_evidence": [
