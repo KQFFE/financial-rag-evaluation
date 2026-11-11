@@ -4,6 +4,10 @@ FinDocEval is a small evaluation demo for answers grounded in public financial
 documents. It is not a full chatbot product, financial advice, or a compliance
 certification.
 
+The local assistant and offline tests do not require an API key or a paid
+service. Real-model evaluation is prepared as an optional workflow and is not
+needed to use the project.
+
 ## What it does
 
 The demo answers questions using passages from a small set of bundled public
@@ -135,15 +139,26 @@ semantic verifier and cannot establish that all possible claims are true.
 
 ## Optional live-model evaluation
 
-Live evaluation is a separate, opt-in command. It sends the small fixed
-benchmark's answerable questions to OpenAI's Chat Completions API using
-`gpt-4o-mini` by default. Retrieval-only abstentions do not call the model.
-Set the key only in the environment; never put it in source control:
+Live evaluation is prepared but disabled by default. It is not run by the
+local assistant, offline tests, or CI. If explicitly enabled in the future, it
+sends the small fixed benchmark's answerable questions to OpenAI's Chat
+Completions API using `gpt-4o-mini` by default. Retrieval-only abstentions do
+not call the model. OpenAI API usage may incur charges and is billed separately
+from ChatGPT; no paid service is required for the rest of the project.
+
+The following PowerShell lines are intentionally commented out, and the API
+key field is empty. They do nothing unless you deliberately enable them. If
+you ever choose to run the evaluation, set the key in your local environment
+instead of saving it in this file, source control, or chat:
 
 ```powershell
-$env:OPENAI_API_KEY = "..."
-python -m financial_rag_eval.live_evaluate --output evaluations/run.json
+# $env:OPENAI_API_KEY = ""
+# python -m financial_rag_eval.live_evaluate --output evaluations\run.json
 ```
+
+For an existing terminal session where a key was previously set, remove it
+with `Remove-Item Env:\OPENAI_API_KEY`. The command does not delete the key
+from your OpenAI account.
 
 Set `OPENAI_MODEL` to select another compatible model. The command prints a
 case-by-case grade and writes a JSON snapshot containing the model, timestamp,
