@@ -125,6 +125,24 @@ The latest local run on Python 3.14.7 passed 131 tests with 100% combined
 statement and branch coverage. This is an offline code-coverage result, not a
 measure of real-model answer quality.
 
+## Results
+
+Offline results, measured on November 11, 2026 with the no-model assistant
+(Python 3.14.7):
+
+| Check | Result |
+|---|---|
+| Offline test suite | 131 of 131 tests pass |
+| Statement and branch coverage | 100% |
+| Benchmark cases | 15 of 15 pass (8 answerable, 7 should abstain) |
+| Real-model evaluation | Not run |
+
+The 15 of 15 figure checks the retrieval and grading code against the hand-written
+benchmark. It is not a measure of how well any AI model answers. The cases were
+written alongside the code, so passing them shows the checks behave as designed,
+not that the approach generalizes. No live-model result exists because that
+workflow is optional and disabled to avoid paid services.
+
 The grounding checker is deliberately lightweight: it checks expected answer
 text, citations, retrieved source passages, and overlapping content terms. For
 the rate comparison, each rate must occur before its own source citation; the
